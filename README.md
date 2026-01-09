@@ -1,11 +1,16 @@
 # yt-shorts-agent
 
-A simple Python agent that pulls a story-style Reddit post, rewrites it using the OpenAI API into a short script suitable for YouTube Shorts, and saves the result as JSON. Phase 1 only: no uploading or media generation.
+Phase 1: Generate 100% original "reddit-vibes" short scripts using OpenAI and save them as JSON. No Reddit API, no uploads, no TTS.
 
-## What it does
-- Fetches a random non-NSFW, non-stickied, text-heavy post from one of: TrueOffMyChest, AmItheAsshole, relationship_advice
-- Sends the post text to OpenAI to rewrite into a 30–40s (90–130 words) short script
-- Saves the output to `output/script.json`
+## What this project does
+- Picks a theme based on the NICHE and generates an original short story with AITA/confession/relationship vibes.
+- Ensures content is original and suitable for a 30–40s YouTube Shorts narration.
+- Saves the output to `output/script.json` in this schema:
+  {
+    "title": "",
+    "description": "",
+    "script": ""
+  }
 
 ## Setup
 1. Create and activate a virtual environment:
@@ -21,18 +26,17 @@ source .venv/bin/activate
 pip install -r requirements.txt
 ```
 
-3. Copy `.env.example` to `.env` and fill in your keys:
+3. Copy `.env.example` to `.env` and add your OpenAI API key:
 
 ```bash
 cp .env.example .env
-# then edit .env to add your keys
+# edit .env and set OPENAI_API_KEY
 ```
 
 Required environment variables in `.env`:
 - OPENAI_API_KEY
-- REDDIT_CLIENT_ID
-- REDDIT_CLIENT_SECRET
-- REDDIT_USER_AGENT (defaults to yt-shorts-agent)
+- CHANNEL_STYLE (defaults to reddit_vibes)
+- NICHE (e.g. aita, confession, relationships, creepy)
 
 ## Run
 
@@ -42,5 +46,5 @@ python scripts/agent.py
 ```
 
 ## Notes
-- Do NOT commit `.env` or `output/` to version control. They are in `.gitignore`.
+- `.env` and `output/` are gitignored; do not commit secrets or generated files.
 - This phase only generates scripts; no upload or media creation is implemented.

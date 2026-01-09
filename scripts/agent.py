@@ -1,154 +1,135 @@
 #!/usr/bin/env python3
 """
-Agent to fetch a Reddit post, rewrite it with OpenAI, and save as JSON for YouTube Shorts.
-Phase 1 only: script generation.
+Generate 100% original 'reddit-vibes' short scripts using the OpenAI API
+and save them to output/script.json. Phase 1 only: no Reddit, no upload, no TTS.
 """
 
 import os
 import random
 import json
 from dotenv import load_dotenv
-import openai
-import praw
+from openai import OpenAI
 
 # Load environment
 load_dotenv()
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
-REDDIT_CLIENT_ID = os.getenv("REDDIT_CLIENT_ID")
-REDDIT_CLIENT_SECRET = os.getenv("REDDIT_CLIENT_SECRET")
-REDDIT_USER_AGENT = os.getenv("REDDIT_USER_AGENT", "yt-shorts-agent")
+CHANNEL_STYLE = os.getenv("CHANNEL_STYLE", "reddit_vibes")
+NICHE = os.getenv("NICHE", "aita").lower()
 
-if not OPENAI_API_KEY or not REDDIT_CLIENT_ID or not REDDIT_CLIENT_SECRET:
-    raise SystemExit("Missing required environment variables. Copy .env.example to .env and set your keys.")
+if not OPENAI_API_KEY:
+    raise SystemExit("Missing OPENAI_API_KEY in your .env. Copy .env.example to .env and set your key.")
 
-openai.api_key = OPENAI_API_KEY
+# Initialize OpenAI client
+client = OpenAI(api_key=OPENAI_API_KEY)
 
-# Initialize Reddit client
-reddit = praw.Reddit(
-    client_id=REDDIT_CLIENT_ID,
-    client_secret=REDDIT_CLIENT_SECRET,
-    user_agent=REDDIT_USER_AGENT,
-)
-
-SUBREDDITS = ["TrueOffMyChest", "AmItheAsshole", "relationship_advice"]
-MAX_CHARS = 2500
 OUTPUT_PATH = os.path.join(os.path.dirname(os.path.dirname(__file__)), "output", "script.json")
 
+# Themes per niche to add variety
+THEMES = {
+    "aita": [
+        "family drama over inheritance",
+        "wedding argument about etiquette",
+        "roommate conflict over chores and money",
+    ],
+    "confession": [
+        "admitting a long-hidden secret",
+        "confession about a mistake at work",
+        "guilt over a past relationship choice",
+    ],
+    "relationships": [
+        "miscommunication leads to breakup fears",
+        "dating boundary issues",
+        "surprising support from an ex"
+    ],
+    "creepy": [
+        "strange neighbor behavior",
+        "late-night knocks with no one there",
+        "unsettling discovery in the attic"
+    ],
+}
 
-def pick_post(retries=10):
-    """Pick a random suitable post from the configured subreddits."""
-    subs = SUBREDDITS.copy()
-    random.shuffle(subs)
-    for _ in range(retries):
-        subreddit_name = random.choice(subs)
-        subreddit = reddit.subreddit(subreddit_name)
-        # Fetch hot posts and filter
-        for submission in subreddit.hot(limit=50):
-            if submission.stickied:
-                continue
-            if submission.over_18:
-                continue
-            # Prefer text posts with body
-            text = (submission.selftext or "").strip()
-            title = (submission.title or "").strip()
-            full_text = f"{title}\n\n{text}" if text else title
-            if not full_text:
-                continue
-            if len(full_text) > MAX_CHARS:
-                # truncate gracefully
-                full_text = full_text[:MAX_CHARS]
-            # Heuristic: require at least ~200 chars to be story-like
-            if len(full_text) < 200:
-                continue
-            return submission, full_text
-    return None, None
+# Choose a theme list based on NICHE
+theme_list = THEMES.get(NICHE, THEMES["aita"])
 
 
-def build_prompt(post_text):
-    """Construct the prompt to send to OpenAI following the rules."""
+def build_prompt(theme):
+    """Create a system and user prompt that forces original, reddit-vibe output in strict JSON."""
     system = (
-        "You are a creative assistant that rewrites Reddit posts into short, engaging scripts for YouTube Shorts. "
-        "Follow the user instructions exactly and output ONLY valid JSON with the schema: {\n  \"title\": \"\",\n  \"description\": \"\",\n  \"script\": \"\"\n}\n"
+        "You are a creative assistant that writes short, engaging, original stories with a 'Reddit-like' voice but DO NOT copy or quote any real Reddit content. "
+        "Output ONLY valid JSON with the schema: {\n  \"title\": \"\",\n  \"description\": \"\",\n  \"script\": \"\"\n}." 
     )
 
     user = (
-        "Rewrite the following Reddit post into original wording. Do NOT quote the original text. "
-        "Remove usernames and any identifying details. Produce a 30–40 second spoken script (about 90–130 words). "
-        "Start with a hook and end with a question. Avoid explicit sexual content or graphic violence. "
-        "Append the tag '#shorts' to the description. Return ONLY valid JSON with keys: title, description, script. "
-        f"Here is the post:\n\n{post_text}"
+        "Write a brief, original story inspired by the 'Reddit vibes' for the following theme. Do NOT quote or reference any real Reddit posts, usernames, or private details. Keep it suitable for a YouTube Shorts narration: 30–40 seconds (about 90–130 words). Start with a hook, end with a question, avoid explicit sexual content and graphic violence. Return ONLY the JSON object (no extra text).\n\n"
+        f"Theme: {theme}\n\n"
+        "Be creative, concise, and make sure the JSON parses correctly."
     )
 
     return system, user
 
 
 def call_openai(system_prompt, user_prompt):
-    """Call the OpenAI ChatCompletion API using gpt-4o-mini."""
-    try:
-        response = openai.ChatCompletion.create(
-            model="gpt-4o-mini",
-            messages=[
-                {"role": "system", "content": system_prompt},
-                {"role": "user", "content": user_prompt},
-            ],
-            temperature=0.8,
-            max_tokens=500,
-        )
-        return response.choices[0].message.content
-    except Exception as e:
-        raise
+    """Call OpenAI using the modern client and return the assistant content."""
+    resp = client.chat.completions.create(
+        model="gpt-4o-mini",
+        messages=[
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": user_prompt},
+        ],
+        temperature=0.9,
+        max_tokens=500,
+    )
+    return resp.choices[0].message.content
 
 
-def save_output(json_text):
-    """Save JSON text to output/script.json"""
-    # Ensure output directory exists
-    out_dir = os.path.dirname(OUTPUT_PATH)
-    os.makedirs(out_dir, exist_ok=True)
-    # Parse and reformat JSON to ensure validity
-    data = json.loads(json_text)
-    # Ensure description has #shorts
-    if "description" in data:
-        if "#shorts" not in data["description"]:
-            data["description"] = data["description"].strip() + "\n\n#shorts"
+def extract_json(text):
+    """Extract the first JSON object found in text (handles markdown backticks)."""
+    start = text.find("{")
+    end = text.rfind("}")
+    if start == -1 or end == -1:
+        raise ValueError("No JSON object found in model output")
+    return text[start : end + 1]
+
+
+def save_output(data_obj):
+    """Ensure output dir exists, append #shorts to description, and save pretty JSON."""
+    os.makedirs(os.path.dirname(OUTPUT_PATH), exist_ok=True)
+    # Ensure description contains #shorts
+    if "description" in data_obj and "#shorts" not in data_obj["description"]:
+        data_obj["description"] = data_obj["description"].strip() + "\n\n#shorts"
     with open(OUTPUT_PATH, "w", encoding="utf-8") as f:
-        json.dump(data, f, ensure_ascii=False, indent=2)
+        json.dump(data_obj, f, ensure_ascii=False, indent=2)
     return OUTPUT_PATH
 
 
 def main():
-    submission, post_text = pick_post()
-    if not submission:
-        print("No suitable post found. Try again later.")
-        return
+    theme = random.choice(theme_list)
+    print(f"Generating original reddit-vibes story for theme: {theme}")
 
-    print(f"Selected post: {submission.title} (r/{submission.subreddit.display_name})")
-
-    system_prompt, user_prompt = build_prompt(post_text)
-
-    print("Calling OpenAI to rewrite the post...")
-    ai_output = call_openai(system_prompt, user_prompt)
-
-    # Attempt to extract JSON from the model output
-    # Some models may wrap JSON in backticks or markdown; try to find the first '{' and last '}'
-    start = ai_output.find("{")
-    end = ai_output.rfind("}")
-    if start == -1 or end == -1:
-        print("OpenAI returned invalid JSON.")
-        print(ai_output)
-        return
-    json_text = ai_output[start : end + 1]
+    system_prompt, user_prompt = build_prompt(theme)
+    raw = call_openai(system_prompt, user_prompt)
 
     try:
-        out_path = save_output(json_text)
+        json_text = extract_json(raw)
+        data = json.loads(json_text)
     except Exception as e:
-        print("Failed to save output:", e)
-        print("Model output was:\n", ai_output)
+        print("Failed to parse JSON from model output:", e)
+        print("Raw output:\n", raw)
         return
 
+    # Validate keys
+    for k in ("title", "description", "script"):
+        if k not in data or not isinstance(data[k], str) or not data[k].strip():
+            print(f"Model output missing or invalid '{k}'")
+            print("Raw output:\n", raw)
+            return
+
+    out_path = save_output(data)
     print(f"Saved generated script to {out_path}")
-    print("Preview:")
-    with open(out_path, "r", encoding="utf-8") as f:
-        print(f.read())
+    print("Preview:\n")
+    print("Title:", data["title"])
+    print("Description:\n", data["description"])
+    print("Script:\n", data["script"])
 
 
 if __name__ == "__main__":
