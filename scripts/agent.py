@@ -1,136 +1,174 @@
 #!/usr/bin/env python3
 """
-Generate 100% original 'reddit-vibes' short scripts using the OpenAI API
+Generate 100% original 'reddit-vibes' short scripts using Hugging Face Inference API
 and save them to output/script.json. Phase 1 only: no Reddit, no upload, no TTS.
 """
 
 import os
 import random
 import json
+import time
+import pathlib
 from dotenv import load_dotenv
-from openai import OpenAI
+import requests
 
-# Load environment
-load_dotenv()
-OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
-CHANNEL_STYLE = os.getenv("CHANNEL_STYLE", "reddit_vibes")
-NICHE = os.getenv("NICHE", "aita").lower()
+# Load .env from project root deterministically
+load_dotenv(dotenv_path=str(pathlib.Path(__file__).resolve().parents[1] / '.env'))
 
-if not OPENAI_API_KEY:
-    raise SystemExit("Missing OPENAI_API_KEY in your .env. Copy .env.example to .env and set your key.")
+HF_API_TOKEN = os.getenv('HF_API_TOKEN')
+MODEL_ID = os.getenv('MODEL_ID', 'mistralai/Mistral-7B-Instruct-v0.2')
+NICHE = os.getenv('NICHE', 'aita').lower()
 
-# Initialize OpenAI client
-client = OpenAI(api_key=OPENAI_API_KEY)
+if not HF_API_TOKEN:
+    raise SystemExit('Missing HF_API_TOKEN in .env. Create an access token on Hugging Face and add it to .env')
 
-OUTPUT_PATH = os.path.join(os.path.dirname(os.path.dirname(__file__)), "output", "script.json")
+OUTPUT_PATH = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'output', 'script.json')
 
-# Themes per niche to add variety
+# Themes per niche
 THEMES = {
-    "aita": [
-        "family drama over inheritance",
-        "wedding argument about etiquette",
-        "roommate conflict over chores and money",
+    'aita': [
+        'family drama over inheritance',
+        'wedding argument about etiquette',
+        'roommate conflict over chores and money',
     ],
-    "confession": [
-        "admitting a long-hidden secret",
-        "confession about a mistake at work",
-        "guilt over a past relationship choice",
+    'confession': [
+        'admitting a long-hidden secret',
+        'confession about a mistake at work',
+        'guilt over a past relationship choice',
     ],
-    "relationships": [
-        "miscommunication leads to breakup fears",
-        "dating boundary issues",
-        "surprising support from an ex"
+    'relationships': [
+        'miscommunication leads to breakup fears',
+        'dating boundary issues',
+        'surprising support from an ex',
     ],
-    "creepy": [
-        "strange neighbor behavior",
-        "late-night knocks with no one there",
-        "unsettling discovery in the attic"
+    'creepy': [
+        'strange neighbor behavior',
+        'late-night knocks with no one there',
+        'unsettling discovery in the attic',
     ],
 }
 
-# Choose a theme list based on NICHE
-theme_list = THEMES.get(NICHE, THEMES["aita"])
+theme_list = THEMES.get(NICHE, THEMES['aita'])
 
 
 def build_prompt(theme):
-    """Create a system and user prompt that forces original, reddit-vibe output in strict JSON."""
-    system = (
-        "You are a creative assistant that writes short, engaging, original stories with a 'Reddit-like' voice but DO NOT copy or quote any real Reddit content. "
-        "Output ONLY valid JSON with the schema: {\n  \"title\": \"\",\n  \"description\": \"\",\n  \"script\": \"\"\n}." 
+    prompt = (
+        'You are a creative assistant. Produce a 100% ORIGINAL short story that captures "Reddit-vibes" for the theme below. Do NOT copy or quote any real Reddit content or usernames.\n\n'
+        'Constraints:\n'
+        '- 90–130 words (30–40 seconds spoken)\n'
+        '- Start with a strong hook (first sentence)\n'
+        "- End with a question\n"
+        '- Avoid explicit sexual content and graphic violence\n'
+        '- Return ONLY a JSON object with this exact schema (no markdown, no backticks, no extra text):\n'
+        '{\n'
+        '  "title": "story title here",\n'
+        '  "description": "brief description #shorts",\n'
+        '  "script": "the full story script here"\n'
+        '}\n\n'
+        f'Theme: {theme}\n\n'
+        'Write the story now.'
     )
-
-    user = (
-        "Write a brief, original story inspired by the 'Reddit vibes' for the following theme. Do NOT quote or reference any real Reddit posts, usernames, or private details. Keep it suitable for a YouTube Shorts narration: 30–40 seconds (about 90–130 words). Start with a hook, end with a question, avoid explicit sexual content and graphic violence. Return ONLY the JSON object (no extra text).\n\n"
-        f"Theme: {theme}\n\n"
-        "Be creative, concise, and make sure the JSON parses correctly."
-    )
-
-    return system, user
+    return prompt
 
 
-def call_openai(system_prompt, user_prompt):
-    """Call OpenAI using the modern client and return the assistant content."""
-    resp = client.chat.completions.create(
-        model="gpt-4o-mini",
-        messages=[
-            {"role": "system", "content": system_prompt},
-            {"role": "user", "content": user_prompt},
-        ],
-        temperature=0.9,
-        max_tokens=500,
-    )
-    return resp.choices[0].message.content
+def call_hf(prompt):
+    url = f"https://api-inference.huggingface.co/models/{MODEL_ID}"
+    headers = {"Authorization": f"Bearer {HF_API_TOKEN}", "Content-Type": "application/json"}
+    payload = {
+        "inputs": prompt,
+        "parameters": {
+            "max_new_tokens": 300,
+            "temperature": 0.9,
+            "return_full_text": False
+        }
+    }
+    resp = requests.post(url, headers=headers, json=payload, timeout=60)
+    if resp.status_code != 200:
+        # try to show helpful error
+        try:
+            err = resp.json()
+        except Exception:
+            resp.raise_for_status()
+        if isinstance(err, dict) and 'error' in err:
+            raise RuntimeError(f"Hugging Face API error: {err['error']}")
+        else:
+            resp.raise_for_status()
+    data = resp.json()
+    # HF may return a list of {'generated_text': ...}
+    if isinstance(data, list) and len(data) and 'generated_text' in data[0]:
+        return data[0]['generated_text']
+    # Or a dict with 'generated_text'
+    if isinstance(data, dict) and 'generated_text' in data:
+        return data['generated_text']
+    # Unexpected format
+    raise RuntimeError(f"Unexpected HF response format: {data}")
 
 
 def extract_json(text):
-    """Extract the first JSON object found in text (handles markdown backticks)."""
-    start = text.find("{")
-    end = text.rfind("}")
-    if start == -1 or end == -1:
-        raise ValueError("No JSON object found in model output")
-    return text[start : end + 1]
+    # Try direct parse first
+    try:
+        return json.loads(text)
+    except Exception:
+        # Fallback: locate first {...}
+        start = text.find('{')
+        end = text.rfind('}')
+        if start == -1 or end == -1:
+            raise ValueError('No JSON found in model output')
+        substring = text[start:end+1]
+        return json.loads(substring)
 
 
-def save_output(data_obj):
-    """Ensure output dir exists, append #shorts to description, and save pretty JSON."""
+def save_output(obj):
     os.makedirs(os.path.dirname(OUTPUT_PATH), exist_ok=True)
-    # Ensure description contains #shorts
-    if "description" in data_obj and "#shorts" not in data_obj["description"]:
-        data_obj["description"] = data_obj["description"].strip() + "\n\n#shorts"
-    with open(OUTPUT_PATH, "w", encoding="utf-8") as f:
-        json.dump(data_obj, f, ensure_ascii=False, indent=2)
+    # ensure description contains #shorts
+    if 'description' in obj and '#shorts' not in obj['description']:
+        obj['description'] = obj['description'].strip() + '\n\n#shorts'
+    with open(OUTPUT_PATH, 'w', encoding='utf-8') as f:
+        json.dump(obj, f, ensure_ascii=False, indent=2)
     return OUTPUT_PATH
 
 
 def main():
     theme = random.choice(theme_list)
-    print(f"Generating original reddit-vibes story for theme: {theme}")
+    print('Theme:', theme)
+    prompt = build_prompt(theme)
 
-    system_prompt, user_prompt = build_prompt(theme)
-    raw = call_openai(system_prompt, user_prompt)
-
-    try:
-        json_text = extract_json(raw)
-        data = json.loads(json_text)
-    except Exception as e:
-        print("Failed to parse JSON from model output:", e)
-        print("Raw output:\n", raw)
-        return
-
-    # Validate keys
-    for k in ("title", "description", "script"):
-        if k not in data or not isinstance(data[k], str) or not data[k].strip():
-            print(f"Model output missing or invalid '{k}'")
-            print("Raw output:\n", raw)
+    # One retry: if parsing fails, try again with a stricter instruction
+    for attempt in range(2):
+        if attempt == 1:
+            print('Retrying with stricter JSON-only instruction...')
+            prompt = 'IMPORTANT: Return ONLY valid JSON, no markdown, no backticks, no explanations. JSON schema: {"title": "...", "description": "...", "script": "..."}\n\n' + prompt
+            time.sleep(1)
+        try:
+            raw = call_hf(prompt)
+        except Exception as e:
+            print('Hugging Face API call failed:', e)
             return
 
-    out_path = save_output(data)
-    print(f"Saved generated script to {out_path}")
-    print("Preview:\n")
-    print("Title:", data["title"])
-    print("Description:\n", data["description"])
-    print("Script:\n", data["script"])
+        try:
+            obj = extract_json(raw)
+        except Exception as e:
+            print('Failed to parse JSON from model output:', e)
+            print('Model output was:\n', raw)
+            continue
+
+        # Validate
+        for k in ('title', 'description', 'script'):
+            if k not in obj or not isinstance(obj[k], str) or not obj[k].strip():
+                print(f"Output missing or invalid '{k}'")
+                print('Model output was:\n', raw)
+                break
+        else:
+            out_path = save_output(obj)
+            print('Saved generated script to', out_path)
+            print('\nPreview:\n')
+            print('Title:', obj['title'])
+            print('Description:\n', obj['description'])
+            print('Script:\n', obj['script'])
+            return
+
+    print('Failed to generate valid JSON after retries.')
 
 
-if __name__ == "__main__":
+if __name__ == '__main__':
     main()
