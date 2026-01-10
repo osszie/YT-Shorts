@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Generate 100% original 'reddit-vibes' short scripts using Hugging Face Inference API
+Generate 100% original 'reddit-vibes' short scripts using Ollama (local AI)
 and save them to output/script.json. Phase 1 only: no Reddit, no upload, no TTS.
 """
 
@@ -15,12 +15,10 @@ import requests
 # Load .env from project root deterministically
 load_dotenv(dotenv_path=str(pathlib.Path(__file__).resolve().parents[1] / '.env'))
 
-HF_API_TOKEN = os.getenv('HF_API_TOKEN')
-MODEL_ID = os.getenv('MODEL_ID', 'mistralai/Mistral-7B-Instruct-v0.2')
+# Ollama configuration
+OLLAMA_BASE_URL = os.getenv('OLLAMA_BASE_URL', 'http://localhost:11434')
+MODEL_NAME = os.getenv('MODEL_NAME', 'phi3:mini')
 NICHE = os.getenv('NICHE', 'aita').lower()
-
-if not HF_API_TOKEN:
-    raise SystemExit('Missing HF_API_TOKEN in .env. Create an access token on Hugging Face and add it to .env')
 
 OUTPUT_PATH = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'output', 'script.json')
 
@@ -71,37 +69,30 @@ def build_prompt(theme):
     return prompt
 
 
-def call_hf(prompt):
-    url = f"https://api-inference.huggingface.co/models/{MODEL_ID}"
-    headers = {"Authorization": f"Bearer {HF_API_TOKEN}", "Content-Type": "application/json"}
+def call_ollama(prompt):
+    """Call Ollama API to generate text using the configured model."""
+    url = f"{OLLAMA_BASE_URL}/api/generate"
     payload = {
-        "inputs": prompt,
-        "parameters": {
-            "max_new_tokens": 300,
+        "model": MODEL_NAME,
+        "prompt": prompt,
+        "stream": False,
+        "options": {
             "temperature": 0.9,
-            "return_full_text": False
+            "num_predict": 300,
         }
     }
-    resp = requests.post(url, headers=headers, json=payload, timeout=60)
-    if resp.status_code != 200:
-        # try to show helpful error
-        try:
-            err = resp.json()
-        except Exception:
-            resp.raise_for_status()
-        if isinstance(err, dict) and 'error' in err:
-            raise RuntimeError(f"Hugging Face API error: {err['error']}")
+    
+    try:
+        resp = requests.post(url, json=payload, timeout=120)
+        resp.raise_for_status()
+        data = resp.json()
+        
+        if 'response' in data:
+            return data['response']
         else:
-            resp.raise_for_status()
-    data = resp.json()
-    # HF may return a list of {'generated_text': ...}
-    if isinstance(data, list) and len(data) and 'generated_text' in data[0]:
-        return data[0]['generated_text']
-    # Or a dict with 'generated_text'
-    if isinstance(data, dict) and 'generated_text' in data:
-        return data['generated_text']
-    # Unexpected format
-    raise RuntimeError(f"Unexpected HF response format: {data}")
+            raise RuntimeError(f"Unexpected Ollama response format: {data}")
+    except requests.exceptions.RequestException as e:
+        raise RuntimeError(f"Ollama API error: {e}. Make sure Ollama is running (ollama serve) and the model '{MODEL_NAME}' is available (ollama pull {MODEL_NAME})")
 
 
 def extract_json(text):
@@ -140,9 +131,9 @@ def main():
             prompt = 'IMPORTANT: Return ONLY valid JSON, no markdown, no backticks, no explanations. JSON schema: {"title": "...", "description": "...", "script": "..."}\n\n' + prompt
             time.sleep(1)
         try:
-            raw = call_hf(prompt)
+            raw = call_ollama(prompt)
         except Exception as e:
-            print('Hugging Face API call failed:', e)
+            print('Ollama API call failed:', e)
             return
 
         try:
