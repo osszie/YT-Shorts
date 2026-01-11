@@ -1,2 +1,4 @@
-python-dotenv
-requests
+aiohttp==3.13.3
+edge-tts==7.2.7
+python-dotenv==1.2.1
+requests==2.32.5
