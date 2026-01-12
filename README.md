@@ -85,18 +85,27 @@ Run all phases in sequence:
 ```bash
 source .venv/bin/activate
 
-# One command (recommended)
-python scripts/run_all.py
+# Phase 1: Generate story
+python scripts/agent.py
 
-# Optional: include Phase 4 upload agent (dry-run by default)
-python scripts/run_all.py --upload
+# Phase 2: Generate voice
+python scripts/tts.py
+
+# Phase 3a: Generate captions
+python scripts/captions.py
+
+# Phase 3b: Render video
+python scripts/render.py
+
+# Phase 4: Upload to YouTube
+python scripts/upload.py
 ```
 
 ### Output Files
 All generated files are in `output/` (gitignored):
 - `script.json` - Generated story (title, description, script)
 - `voice.mp3` - Audio narration
-- `captions.ass` - Word-level animated captions (auto-captions from audio)
+- `captions.srt` - Timed subtitles
 - `final.mp4` - Final 1080x1920 video with captions
 
 ## Configuration
@@ -132,16 +141,15 @@ yt-shorts-agent/
 ├── scripts/
 │   ├── agent.py      # Phase 1: Story generation
 │   ├── tts.py         # Phase 2: Voice synthesis
-│   ├── captions_bounce.py  # Phase 3a: Word-level animated captions (ASS)
+│   ├── captions.py    # Phase 3a: Caption generation
 │   ├── render.py      # Phase 3b: Video rendering
-│   ├── upload_youtube.py   # Phase 4: YouTube upload agent (modular, dry-run support)
-│   └── run_all.py     # Orchestrator: run phases end-to-end
+│   └── upload.py      # Phase 4: YouTube upload
 ├── assets/
 │   └── backgrounds/   # Background video files (.mp4)
 ├── output/            # Generated files (gitignored)
 │   ├── script.json
 │   ├── voice.mp3
-│   ├── captions.ass
+│   ├── captions.srt
 │   └── final.mp4
 ├── credentials.json   # Google OAuth credentials (gitignored)
 ├── token.pickle       # OAuth token cache (gitignored)

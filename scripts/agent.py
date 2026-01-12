@@ -87,13 +87,14 @@ def call_ollama(prompt):
     payload = {
         "model": MODEL_NAME,
         "prompt": prompt,
+        # Ask Ollama to enforce valid JSON output (dramatically reduces "```json" + invalid JSON issues).
+        # Supported by Ollama's /api/generate.
+        "format": "json",
         "stream": False,
         "options": {
             "temperature": 0.9,
             # Give the model enough room to finish valid JSON + a full script.
             "num_predict": 500,
-            # Encourage the model to stop after finishing the JSON object.
-            "stop": ["\n}\n", "\n}\r\n", "}\n```", "}\r\n```"],
         }
     }
     
@@ -161,20 +162,39 @@ def fallback_story(theme: str):
     tease = random.choice(tease_templates)
     cta = random.choice(cta_templates)
 
-    # ~120–150 words with concrete details
+    names = ["Alex", "Jordan", "Sam", "Taylor", "Casey", "Riley", "Morgan", "Jamie"]
+    a, b = random.sample(names, 2)
+    detail_bits = [
+        "a screenshot that contradicted what they told everyone",
+        "a receipt with the date/time that didn’t line up",
+        "a group chat message they 'forgot' to mention",
+        "a voicemail that changed the whole story",
+        "a calendar invite that proved who agreed to what",
+    ]
+    escalation_bits = [
+        "then they posted a vague story online and people started DM’ing me",
+        "then they told our friends I was being 'dramatic' before we even talked",
+        "then they changed the agreement like it never existed",
+        "then they tried to make it about my tone instead of the actual issue",
+    ]
+    proof = random.choice(detail_bits)
+    escalation = random.choice(escalation_bits)
+
+    # ~120–170 words with concrete details (more variety, less same-y)
     body = (
         f"For context, it started with {theme}. "
-        "I tried to keep it calm, but every time we talked, someone would change the story. "
-        "One person kept saying it was 'no big deal'… while also acting like they were the victim. "
-        "Then I found proof—screenshots, receipts, and a timeline that didn’t match what they told everyone. "
-        "When I brought it up, they flipped it on me and accused me of being controlling. "
-        "Now the group chat is split, people are picking sides, and I’m getting blamed for 'making it public' even though they started spreading it first. "
+        f"{a} and I were fine until {b} stepped in and suddenly the story changed depending on who was in the room. "
+        "At first I tried to keep it calm and handle it privately, but it kept getting framed like I was the problem. "
+        f"Then I found {proof}. "
+        f"When I brought it up, {b} acted like I was 'attacking' them and said I was controlling. "
+        f"{escalation}. "
+        "Now the group chat is split into two teams, and I’m getting blamed for 'starting drama' even though I only responded to what was already being said. "
         f"{cta}"
     )
 
     script = "\n".join([hook, tease, body])
     return {
-        "title": "Reddit Story: Pick a Side",
+        "title": f"Reddit Story: {theme.title()}",
         "description": f"A Reddit-style story about {theme}. #shorts",
         "script": script,
     }
@@ -182,6 +202,88 @@ def fallback_story(theme: str):
 
 def _word_count(s: str) -> int:
     return len(re.findall(r"\S+", s or ""))
+
+
+def _split_sentences(text: str) -> list[str]:
+    # Lightweight sentence splitter good enough for short scripts
+    parts = re.split(r"(?<=[.!?])\s+", (text or "").strip())
+    return [p.strip() for p in parts if p and p.strip()]
+
+
+def normalize_script(script: str, theme: str) -> str:
+    """
+    Make sure the script always has:
+    - Line 1: hook
+    - Line 2: tease
+    - Line 3+: body ending with a CTA question
+    This prevents "same script" fallback and makes weak model outputs usable.
+    """
+    hook_templates = [
+        "Stop scrolling—this is actually insane.",
+        "I thought this was a small issue… until it blew up.",
+        "This comment section would tear you apart.",
+        "I didn’t expect one rule to start a war.",
+    ]
+    tease_templates = [
+        "Wait for the last comment.",
+        "Wait until you hear what they said at the end.",
+        "Wait for the twist—seriously.",
+        "Wait for the DM I got after this.",
+    ]
+    cta_templates = [
+        "Who’s wrong—me or them?",
+        "Team A or Team B?",
+        "Am I overreacting, or is this messed up?",
+        "What would you do?",
+    ]
+
+    raw = (script or "").strip()
+    # Strip common label formats the model sometimes inserts
+    raw = re.sub(r"^\s*(\[hook\]|\[tease\]|\[story\]|hook:|tease:)\s*", "", raw, flags=re.I | re.M)
+    raw = raw.replace("\r\n", "\n")
+
+    lines = [ln.strip() for ln in raw.splitlines() if ln.strip()]
+    if lines:
+        hook = lines[0]
+        # If the model already provided a "wait..." style tease on the next line, keep it.
+        if len(lines) > 1 and re.search(r"\bwait\b", lines[1], flags=re.I):
+            tease = lines[1]
+            body = " ".join(lines[2:]) if len(lines) > 2 else ""
+        else:
+            tease = random.choice(tease_templates)
+            body = " ".join(lines[1:])
+    else:
+        sentences = _split_sentences(raw)
+        if sentences:
+            hook = sentences[0]
+            body = " ".join(sentences[1:]) if len(sentences) > 1 else ""
+        else:
+            hook = random.choice(hook_templates)
+            body = ""
+        tease = random.choice(tease_templates)
+
+    # If hook is too long, shorten it
+    if len(hook) > 90:
+        hook = hook[:87].rstrip() + "..."
+
+    # Ensure body has enough substance
+    if _word_count(body) < 80:
+        pad = (
+            f"For context, it started with {theme}. "
+            "At first it sounded harmless, but the details kept changing depending on who was listening. "
+            "Then someone posted about it like I was the villain, and the group chat exploded."
+        )
+        body = (body + " " + pad).strip()
+
+    # Ensure ending CTA question
+    if not body.endswith("?"):
+        body = body.rstrip()
+        # If it already ends in punctuation, just add CTA. Otherwise add a question mark CTA.
+        body = body + " " + random.choice(cta_templates)
+        if not body.endswith("?"):
+            body = body.rstrip(".! ") + "?"
+
+    return "\n".join([hook, tease, body]).strip()
 
 
 def main():
@@ -226,20 +328,8 @@ def main():
                 print('Model output was:\n', raw)
                 break
         else:
-            # Enforce word count target to keep shorts length consistent
-            wc = _word_count(obj["script"])
-            if wc < 105 or wc > 170:
-                print(f"Script length out of range ({wc} words). Retrying...")
-                continue
-
-            # Enforce hook+tease lines (first two lines) without bracket labels
-            lines = [ln.strip() for ln in obj["script"].splitlines() if ln.strip()]
-            if len(lines) < 3:
-                print("Script format invalid (needs hook line, tease line, then story). Retrying...")
-                continue
-            if any(lines[0].startswith(x) for x in ("[", "hook:", "tease:")) or any(lines[1].startswith(x) for x in ("[", "hook:", "tease:")):
-                print("Script uses labels for hook/tease; retrying...")
-                continue
+            # Normalize weak model outputs into the required hook/tease/body format.
+            obj["script"] = normalize_script(obj["script"], theme)
 
             out_path = save_output(obj)
             print('Saved generated script to', out_path)
