@@ -9,6 +9,7 @@ import random
 import json
 import time
 import pathlib
+import re
 from dotenv import load_dotenv
 import requests
 
@@ -53,10 +54,21 @@ def build_prompt(theme):
     prompt = (
         'You are a creative assistant. Produce a 100% ORIGINAL short story that captures "Reddit-vibes" for the theme below. Do NOT copy or quote any real Reddit content or usernames.\n\n'
         'Constraints:\n'
-        '- 90–130 words (30–40 seconds spoken)\n'
-        '- Start with a strong hook (first sentence)\n'
-        "- End with a question\n"
+        '- 110–150 words (aim ~45–60 seconds spoken)\n'
+        '- Must feel like a Reddit story (AITA / relationship / confession / creepy vibe)\n'
+        '- HOOK REQUIREMENTS:\n'
+        '  - First line: an immediate pattern-break hook (short, punchy, scroll-stopping)\n'
+        '  - Second line: an open-loop tease (e.g., "Wait for the last comment.")\n'
+        '  - Then the story unfolds quickly with concrete details\n'
+        '- ENDING REQUIREMENTS:\n'
+        '  - End with a strong CTA question for comments ("Who’s wrong?" / "Team A or Team B?" / "What would you do?")\n'
         '- Avoid explicit sexual content and graphic violence\n'
+        '- Avoid long setup; get to conflict fast\n'
+        '- "script" MUST be a single plain string (not an object). Do NOT use labels like [Hook] or [Tease].\n'
+        '- Put hook + tease on their own lines at the very start of the script:\n'
+        '  Line 1: HOOK.\n'
+        '  Line 2: TEASE.\n'
+        '  Line 3+: the story.\n'
         '- Return ONLY a JSON object with this exact schema (no markdown, no backticks, no extra text):\n'
         '{\n'
         '  "title": "story title here",\n'
@@ -78,7 +90,10 @@ def call_ollama(prompt):
         "stream": False,
         "options": {
             "temperature": 0.9,
-            "num_predict": 300,
+            # Give the model enough room to finish valid JSON + a full script.
+            "num_predict": 500,
+            # Encourage the model to stop after finishing the JSON object.
+            "stop": ["\n}\n", "\n}\r\n", "}\n```", "}\r\n```"],
         }
     }
     
@@ -119,6 +134,56 @@ def save_output(obj):
     return OUTPUT_PATH
 
 
+def fallback_story(theme: str):
+    """
+    Deterministic fallback if Ollama fails to return valid JSON.
+    Keeps the same hook + tease + CTA structure so the pipeline always works.
+    """
+    hook_templates = [
+        "I thought my family was close… until this happened.",
+        "I walked into my own home and realized I’d been lied to.",
+        "I didn’t think a small rule could start a war… I was wrong.",
+        "This is the pettiest argument I’ve ever seen—until the twist.",
+    ]
+    tease_templates = [
+        "Wait for the last message—I still can’t believe it.",
+        "Wait for what my sibling said at the end.",
+        "Wait until you hear the final comment.",
+        "Wait for the part that made everyone pick sides.",
+    ]
+    cta_templates = [
+        "Am I overreacting here, or would you be mad too?",
+        "Who’s wrong—me or them?",
+        "Team me or Team them? What would you do?",
+        "Was I out of line, or was this totally unfair?",
+    ]
+    hook = random.choice(hook_templates)
+    tease = random.choice(tease_templates)
+    cta = random.choice(cta_templates)
+
+    # ~120–150 words with concrete details
+    body = (
+        f"For context, it started with {theme}. "
+        "I tried to keep it calm, but every time we talked, someone would change the story. "
+        "One person kept saying it was 'no big deal'… while also acting like they were the victim. "
+        "Then I found proof—screenshots, receipts, and a timeline that didn’t match what they told everyone. "
+        "When I brought it up, they flipped it on me and accused me of being controlling. "
+        "Now the group chat is split, people are picking sides, and I’m getting blamed for 'making it public' even though they started spreading it first. "
+        f"{cta}"
+    )
+
+    script = "\n".join([hook, tease, body])
+    return {
+        "title": "Reddit Story: Pick a Side",
+        "description": f"A Reddit-style story about {theme}. #shorts",
+        "script": script,
+    }
+
+
+def _word_count(s: str) -> int:
+    return len(re.findall(r"\S+", s or ""))
+
+
 def main():
     theme = random.choice(theme_list)
     print('Theme:', theme)
@@ -145,11 +210,37 @@ def main():
 
         # Validate
         for k in ('title', 'description', 'script'):
-            if k not in obj or not isinstance(obj[k], str) or not obj[k].strip():
+            if k not in obj:
+                print(f"Output missing '{k}'")
+                print('Model output was:\n', raw)
+                break
+
+            # Some models mistakenly return script as an object; reject so we retry.
+            if k == 'script' and not isinstance(obj[k], str):
+                print("Output has invalid 'script' (must be a string, not an object).")
+                print('Model output was:\n', raw)
+                break
+
+            if not isinstance(obj[k], str) or not obj[k].strip():
                 print(f"Output missing or invalid '{k}'")
                 print('Model output was:\n', raw)
                 break
         else:
+            # Enforce word count target to keep shorts length consistent
+            wc = _word_count(obj["script"])
+            if wc < 105 or wc > 170:
+                print(f"Script length out of range ({wc} words). Retrying...")
+                continue
+
+            # Enforce hook+tease lines (first two lines) without bracket labels
+            lines = [ln.strip() for ln in obj["script"].splitlines() if ln.strip()]
+            if len(lines) < 3:
+                print("Script format invalid (needs hook line, tease line, then story). Retrying...")
+                continue
+            if any(lines[0].startswith(x) for x in ("[", "hook:", "tease:")) or any(lines[1].startswith(x) for x in ("[", "hook:", "tease:")):
+                print("Script uses labels for hook/tease; retrying...")
+                continue
+
             out_path = save_output(obj)
             print('Saved generated script to', out_path)
             print('\nPreview:\n')
@@ -158,7 +249,14 @@ def main():
             print('Script:\n', obj['script'])
             return
 
-    print('Failed to generate valid JSON after retries.')
+    print('Failed to generate valid JSON after retries. Using fallback template script.')
+    obj = fallback_story(theme)
+    out_path = save_output(obj)
+    print('Saved fallback script to', out_path)
+    print('\nPreview:\n')
+    print('Title:', obj['title'])
+    print('Description:\n', obj['description'])
+    print('Script:\n', obj['script'])
 
 
 if __name__ == '__main__':
