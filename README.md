@@ -1,27 +1,38 @@
 # yt-shorts-agent
 
-Phase 1: Generate 100% original "reddit-vibes" short scripts using Ollama (local AI) and save them as JSON. No Reddit API, no uploads, no TTS.
+Automated YouTube Shorts content generation pipeline using local AI. Generates original Reddit-style stories, converts them to voice, and creates vertical videos with captions.
 
-## What this project does
-- Picks a theme based on the NICHE and generates an original short story with AITA/confession/relationship/creepy vibes.
-- Uses Ollama with phi3:mini model running locally (no API costs!)
-- Ensures content is original and suitable for a 30–40s YouTube Shorts narration.
-- Saves the output to `output/script.json` in this schema:
-  ```json
-  {
-    "title": "",
-    "description": "",
-    "script": ""
-  }
-  ```
+## Current Status: Phase 1, 2, 3, & 4 Complete ✅
+
+### Phase 1: Story Generation ✅
+- Generates 100% original Reddit-style stories using Ollama (phi3:mini)
+- Outputs JSON with title, description, and script
+
+### Phase 2: Voice Synthesis ✅
+- Converts script to MP3 audio using Microsoft Edge TTS (free)
+- Configurable voice, rate, and pitch
+
+### Phase 3: Video Generation ✅
+- Creates timed SRT captions from script and audio
+- Renders 1080x1920 vertical video with background, voice, and burned-in captions
+
+### Phase 4: YouTube Upload ✅
+- Automated upload to YouTube via YouTube Data API v3
+- Metadata management (title, description, tags from script.json)
+- Scheduling support for delayed publishing
+- OAuth2 authentication with token persistence
 
 ## Prerequisites
 - Python 3.7+
 - Ollama installed and running locally
-- phi3:mini model downloaded (or another model of your choice)
+- phi3:mini model downloaded
+- FFmpeg installed (`brew install ffmpeg` on macOS)
+- Google Cloud Project with YouTube Data API v3 enabled (for Phase 4)
 
-## Ollama Setup
-1. Install Ollama from https://ollama.ai
+## Setup
+
+### 1. Install Ollama
+1. Install from https://ollama.ai
 2. Start Ollama server:
    ```bash
    ollama serve
@@ -30,13 +41,14 @@ Phase 1: Generate 100% original "reddit-vibes" short scripts using Ollama (local
    ```bash
    ollama pull phi3:mini
    ```
-4. Verify it's working:
-   ```bash
-   ollama list
-   ```
 
-## Project Setup
-1. Create and activate a virtual environment:
+### 2. Install FFmpeg (macOS)
+```bash
+brew install ffmpeg
+```
+
+### 3. Project Setup
+1. Create and activate virtual environment:
    ```bash
    python3 -m venv .venv
    source .venv/bin/activate
@@ -47,29 +59,127 @@ Phase 1: Generate 100% original "reddit-vibes" short scripts using Ollama (local
    pip install -r requirements.txt
    ```
 
-3. Copy `.env.example` to `.env` (optional - defaults work if Ollama is running locally):
+3. Copy `.env.example` to `.env` (optional - defaults work):
    ```bash
    cp .env.example .env
-   # Edit .env if you need to change:
-   # - OLLAMA_BASE_URL (default: http://localhost:11434)
-   # - MODEL_NAME (default: phi3:mini)
-   # - NICHE (options: aita, confession, relationships, creepy; default: aita)
    ```
 
-## Run
+4. Add background videos:
+   - Place `.mp4` files in `assets/backgrounds/`
+   - Videos will be randomly selected for each render
+   - Any resolution works (will be cropped/scaled to 1080x1920)
+
+5. Set up YouTube API (for Phase 4):
+   - Go to [Google Cloud Console](https://console.cloud.google.com/)
+   - Create a project or select an existing one
+   - Enable YouTube Data API v3
+   - Create OAuth 2.0 credentials (Desktop app type)
+   - Download credentials and save as `credentials.json` in project root
+   - On first run, you'll be prompted to authorize the app in your browser
+
+## Usage
+
+### Full Pipeline
+Run all phases in sequence:
+
 ```bash
 source .venv/bin/activate
-python scripts/agent.py
+
+# One command (recommended)
+python scripts/run_all.py
+
+# Optional: include Phase 4 upload agent (dry-run by default)
+python scripts/run_all.py --upload
 ```
 
-The script will:
-- Pick a random theme based on your NICHE setting
-- Generate a unique Reddit-style story
-- Save it to `output/script.json`
-- Print a preview to the terminal
+### Output Files
+All generated files are in `output/` (gitignored):
+- `script.json` - Generated story (title, description, script)
+- `voice.mp3` - Audio narration
+- `captions.ass` - Word-level animated captions (auto-captions from audio)
+- `final.mp4` - Final 1080x1920 video with captions
+
+## Configuration
+
+### Environment Variables (`.env`)
+```bash
+# Ollama settings
+OLLAMA_BASE_URL=http://localhost:11434
+MODEL_NAME=phi3:mini
+NICHE=aita  # Options: aita, confession, relationships, creepy
+
+# TTS settings
+TTS_VOICE=en-US-GuyNeural
+TTS_RATE=+5%
+TTS_PITCH=+0Hz
+
+# YouTube upload settings (Phase 4)
+YOUTUBE_CATEGORY_ID=22  # People & Blogs (see YouTube category IDs)
+YOUTUBE_PRIVACY=private  # Options: private, unlisted, public
+YOUTUBE_TAGS=shorts,reddit,story,aita
+SCHEDULE_HOURS=0  # Hours to wait before publishing (0 = immediate)
+```
+
+### Background Videos
+- Add `.mp4` files to `assets/backgrounds/`
+- Videos are randomly selected for each render
+- Will be looped and cropped/scaled to 1080x1920 (9:16 aspect ratio)
+- Center crop is used to maintain aspect ratio
+
+## Project Structure
+```
+yt-shorts-agent/
+├── scripts/
+│   ├── agent.py      # Phase 1: Story generation
+│   ├── tts.py         # Phase 2: Voice synthesis
+│   ├── captions_bounce.py  # Phase 3a: Word-level animated captions (ASS)
+│   ├── render.py      # Phase 3b: Video rendering
+│   ├── upload_youtube.py   # Phase 4: YouTube upload agent (modular, dry-run support)
+│   └── run_all.py     # Orchestrator: run phases end-to-end
+├── assets/
+│   └── backgrounds/   # Background video files (.mp4)
+├── output/            # Generated files (gitignored)
+│   ├── script.json
+│   ├── voice.mp3
+│   ├── captions.ass
+│   └── final.mp4
+├── credentials.json   # Google OAuth credentials (gitignored)
+├── token.pickle       # OAuth token cache (gitignored)
+└── requirements.txt
+```
 
 ## Notes
-- `.env` and `output/` are gitignored; do not commit secrets or generated files.
-- This phase only generates scripts; no upload or media creation is implemented.
-- Ollama runs locally, so no API costs and your data stays private.
-- Models are stored locally (can be configured to use external storage).
+- All output files are gitignored; only source code is versioned
+- Ollama runs locally - no API costs, complete privacy
+- Edge TTS is free - no API keys needed
+- FFmpeg is required for video rendering
+- Background videos must be added manually to `assets/backgrounds/`
+- YouTube API requires OAuth2 authentication (one-time browser authorization)
+- Token is cached in `token.pickle` for subsequent uploads
+
+## Troubleshooting
+
+### FFmpeg not found
+```bash
+brew install ffmpeg
+```
+
+### No background videos
+Add `.mp4` files to `assets/backgrounds/` directory
+
+### Ollama connection errors
+Ensure Ollama is running: `ollama serve`
+
+### Missing output files
+Run scripts in order: agent.py → tts.py → captions.py → render.py
+
+### YouTube API authentication errors
+- Ensure `credentials.json` is in project root
+- Delete `token.pickle` and re-run to re-authenticate
+- Check that YouTube Data API v3 is enabled in Google Cloud Console
+
+### YouTube upload fails
+- Verify video file exists: `output/final.mp4`
+- Check that script.json exists with title and description
+- Ensure OAuth token is valid (delete token.pickle to refresh)
+- For scheduled uploads, ensure SCHEDULE_HOURS is set correctly

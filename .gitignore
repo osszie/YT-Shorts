@@ -1,6 +1,25 @@
+.DS_Store
+scripts/.DS_Store
+.idea/
+.vscode/
+
+# Big local assets (keep repo light)
+assets/backgrounds/
+assets/effects/
+assets/effects/*.dmg
+
+# Local test videos
+test_*.mp4
+example videos/
+
+# Legacy scripts kept locally (current pipeline uses captions_bounce.py + upload_youtube.py)
+scripts/captions.py
+scripts/upload.py
 .env
 token.json
+token.pickle
 client_secret.json
+credentials.json
 output/
 logs/
 __pycache__/
