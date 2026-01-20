@@ -191,7 +191,7 @@ def render_video(background_path, voice_path, captions_ass_path, output_path, du
         "-map", "[vout]",
         "-map", "[aout]",
         "-c:v", "libx264",
-        "-preset", "medium",
+        "-preset", "fast",  # Faster encoding (was "medium")
         "-crf", "23",
         "-c:a", "aac",
         "-b:a", "192k",
@@ -201,20 +201,83 @@ def render_video(background_path, voice_path, captions_ass_path, output_path, du
     ]
     
     print("Rendering video (this may take a moment)...")
-    print(f"DEBUG: ASS file path: {abs_captions_path}")
-    print(f"DEBUG: Filter: ass={escaped_path}")
+    print(f"   Background: {os.path.basename(background_path)}")
+    print(f"   Duration: {duration:.2f}s")
+    print("   Processing... (this may take 30-60 seconds)")
     
     try:
-        result = subprocess.run(cmd, capture_output=True, text=True, check=True)
-        # Print any subtitle-related messages
-        stderr_lines = result.stderr.split('\n')
-        for line in stderr_lines:
-            if 'ass' in line.lower() or 'subtitle' in line.lower() or 'libass' in line.lower():
-                print(f"FFmpeg: {line}")
+        import time as time_module
+        
+        # Run FFmpeg and show progress
+        start_time = time_module.time()
+        last_progress_time = start_time
+        
+        process = subprocess.Popen(
+            cmd,
+            stderr=subprocess.PIPE,
+            stdout=subprocess.PIPE,
+            text=True,
+            universal_newlines=True
+        )
+        
+        # Read stderr line by line to show progress
+        last_reported_progress = 0
+        for line in iter(process.stderr.readline, ''):
+            if not line:
+                break
+            line = line.strip()
+            
+            # FFmpeg outputs progress like: "frame=  123 fps= 45 q=23.0 size=    1024kB time=00:00:05.23 bitrate=1234.5kbits/s"
+            if 'time=' in line:
+                try:
+                    # Extract time value
+                    for part in line.split():
+                        if part.startswith('time='):
+                            time_str = part.split('=')[1]
+                            # Parse HH:MM:SS.ms format
+                            parts = time_str.split(':')
+                            if len(parts) == 3:
+                                hours, minutes, secs = parts
+                                current_time = int(hours) * 3600 + int(minutes) * 60 + float(secs)
+                                progress = min(100, (current_time / duration) * 100)
+                                
+                                # Update progress every 2 seconds or 5% change
+                                now = time_module.time()
+                                if (progress - last_reported_progress >= 5.0 or 
+                                    now - last_progress_time >= 2.0):
+                                    print(f"   Progress: {progress:.0f}% ({current_time:.1f}s / {duration:.1f}s)", 
+                                          end='\r', flush=True)
+                                    last_reported_progress = progress
+                                    last_progress_time = now
+                except (ValueError, IndexError):
+                    pass
+            elif 'error' in line.lower() and 'non-fatal' not in line.lower():
+                print(f"\n⚠️  FFmpeg: {line}")
+        
+        # Wait for process to finish
+        process.wait()
+        
+        if process.returncode != 0:
+            # Get any remaining error output
+            remaining = process.stderr.read()
+            print(f"\n❌ FFmpeg error (exit code {process.returncode}):")
+            if remaining:
+                print(remaining)
+            sys.exit(1)
+        
+        elapsed = time_module.time() - start_time
+        print(f"\n✅ Rendering complete! (took {elapsed:.1f}s)")
         return True
     except subprocess.CalledProcessError as e:
-        print(f"❌ FFmpeg error:")
-        print(e.stderr)
+        print(f"\n❌ FFmpeg error:")
+        if hasattr(e, 'stderr') and e.stderr:
+            print(e.stderr)
+        sys.exit(1)
+    except KeyboardInterrupt:
+        print("\n\n⚠️  Rendering interrupted by user")
+        if 'process' in locals():
+            process.terminate()
+            process.wait()
         sys.exit(1)
 
 

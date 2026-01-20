@@ -5,8 +5,9 @@ Automated YouTube Shorts content generation pipeline using local AI. Generates o
 ## Current Status: Phase 1, 2, 3, & 4 Complete ✅
 
 ### Phase 1: Story Generation ✅
-- Generates 100% original Reddit-style stories using Ollama (phi3:mini)
+- Generates 100% original Reddit-style stories using Ollama (qwen3:4b)
 - Outputs JSON with title, description, and script
+- Stories are ~300 words (270-330 word target) with improved structure and pacing
 
 ### Phase 2: Voice Synthesis ✅
 - Converts script to MP3 audio using Microsoft Edge TTS (free)
@@ -25,7 +26,7 @@ Automated YouTube Shorts content generation pipeline using local AI. Generates o
 ## Prerequisites
 - Python 3.7+
 - Ollama installed and running locally
-- phi3:mini model downloaded
+- qwen3:4b model downloaded (run: `ollama pull qwen3:4b`)
 - FFmpeg installed (`brew install ffmpeg` on macOS)
 - Google Cloud Project with YouTube Data API v3 enabled (for Phase 4)
 
@@ -37,9 +38,9 @@ Automated YouTube Shorts content generation pipeline using local AI. Generates o
    ```bash
    ollama serve
    ```
-3. Pull the phi3:mini model:
+3. Pull the qwen3:4b model:
    ```bash
-   ollama pull phi3:mini
+   ollama pull qwen3:4b
    ```
 
 ### 2. Install FFmpeg (macOS)
@@ -114,8 +115,14 @@ All generated files are in `output/` (gitignored):
 ```bash
 # Ollama settings
 OLLAMA_BASE_URL=http://localhost:11434
-MODEL_NAME=phi3:mini
+MODEL_NAME=qwen3:4b
 NICHE=aita  # Options: aita, confession, relationships, creepy
+
+# Caption settings
+CAPTION_MODE=phrase_bounce  # Options: word_bounce, phrase_bounce (phrase_bounce recommended for longer scripts)
+CAPTION_MAX_WORDS_PER_CHUNK=6
+CAPTION_MAX_CHARS_PER_LINE=28
+CAPTION_MAX_LINES=2
 
 # TTS settings
 TTS_VOICE=en-US-GuyNeural

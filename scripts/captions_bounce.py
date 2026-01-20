@@ -11,6 +11,11 @@ import sys
 import ssl
 import argparse
 import math
+from dotenv import load_dotenv
+import pathlib
+
+# Load .env from project root
+load_dotenv(dotenv_path=str(pathlib.Path(__file__).resolve().parents[1] / '.env'))
 
 # Fix SSL certificate issues for Whisper model download
 ssl._create_default_https_context = ssl._create_unverified_context
@@ -26,12 +31,18 @@ SCRIPT_JSON = os.path.join(ROOT, "output", "script.json")
 VOICE_MP3 = os.path.join(ROOT, "output", "voice.mp3")
 OUT_ASS = os.path.join(ROOT, "output", "captions.ass")
 
-# Layout constants
-CHARS_PER_LINE = 25  # Target characters per line (22-28 range)
-MAX_LINES = 2  # Maximum lines displayed at once
+# Layout constants (can be overridden by env)
+CHARS_PER_LINE = int(os.getenv('CAPTION_MAX_CHARS_PER_LINE', '25'))  # Target characters per line
+MAX_LINES = int(os.getenv('CAPTION_MAX_LINES', '2'))  # Maximum lines displayed at once
 CENTER_Y_START = 900  # Starting Y position for center (1080x1920 video, center is ~960)
 LINE_HEIGHT = 80  # Vertical spacing between lines
 CENTER_X = 540  # Center X position (1080 width)
+
+# Caption mode settings
+CAPTION_MODE = os.getenv('CAPTION_MODE', 'phrase_bounce').lower()  # word_bounce or phrase_bounce
+CAPTION_MAX_WORDS_PER_CHUNK = int(os.getenv('CAPTION_MAX_WORDS_PER_CHUNK', '6'))
+CAPTION_MIN_CHUNK_SEC = float(os.getenv('CAPTION_MIN_CHUNK_SEC', '0.9'))
+CAPTION_MAX_CHUNK_SEC = float(os.getenv('CAPTION_MAX_CHUNK_SEC', '2.2'))
 
 # Timing constants
 MIN_WORD_DURATION = 0.18  # Minimum duration per word (seconds) - matches natural speech pace
@@ -519,8 +530,151 @@ def create_bounce_animation():
     )
 
 
-def write_ass_file(word_layouts, output_path):
-    """Write ASS file with word-level bouncing captions."""
+def chunk_words_into_phrases(word_timings, max_words_per_chunk=6, min_chunk_sec=0.9, max_chunk_sec=2.2):
+    """
+    Chunk words into phrases for phrase_bounce mode.
+    Returns list of (phrase_text, start_time, end_time) tuples.
+    """
+    if not word_timings:
+        return []
+    
+    chunks = []
+    current_chunk = []
+    current_start = None
+    
+    for word, start, end in word_timings:
+        if current_start is None:
+            current_start = start
+        
+        current_chunk.append((word, start, end))
+        chunk_duration = end - current_start
+        
+        # Decide if we should finalize this chunk
+        should_finalize = False
+        
+        # Finalize if we hit max words
+        if len(current_chunk) >= max_words_per_chunk:
+            should_finalize = True
+        
+        # Finalize if adding another word would exceed max duration
+        if len(current_chunk) > 0:
+            # Estimate next word would add ~0.2-0.4s
+            estimated_next_duration = chunk_duration + 0.3
+            if estimated_next_duration > max_chunk_sec:
+                should_finalize = True
+        
+        # Finalize if we hit a natural break (punctuation) and have minimum duration
+        if word.endswith(('.', '!', '?', ',', ';', ':')) and chunk_duration >= min_chunk_sec:
+            should_finalize = True
+        
+        if should_finalize:
+            phrase_text = " ".join(w for w, _, _ in current_chunk)
+            chunks.append((phrase_text, current_start, end))
+            current_chunk = []
+            current_start = None
+    
+    # Add remaining chunk
+    if current_chunk:
+        phrase_text = " ".join(w for w, _, _ in current_chunk)
+        chunks.append((phrase_text, current_start, word_timings[-1][2]))
+    
+    return chunks
+
+
+def layout_phrases(phrase_timings):
+    """
+    Layout phrases into lines (max 2 lines visible at once).
+    Returns list of (phrase, start, end, line_num, x_pos, y_pos) tuples.
+    """
+    all_lines = []
+    current_line = []
+    current_line_chars = 0
+    
+    for phrase, start, end in phrase_timings:
+        phrase_chars = len(phrase)
+        space_needed = 1 if current_line_chars > 0 else 0
+        
+        # Check if adding this phrase would exceed line length
+        if current_line and (current_line_chars + space_needed + phrase_chars) > CHARS_PER_LINE:
+            # Start new line
+            all_lines.append(current_line)
+            current_line = [(phrase, start, end)]
+            current_line_chars = phrase_chars
+        else:
+            # Add to current line
+            current_line.append((phrase, start, end))
+            current_line_chars += phrase_chars + space_needed
+    
+    # Add remaining line
+    if current_line:
+        all_lines.append(current_line)
+    
+    # Now assign positions to all phrases, showing max 2 lines at once
+    result = []
+    
+    for phrase_idx, (phrase, start, end) in enumerate(phrase_timings):
+        # Find which line this phrase belongs to
+        line_idx = 0
+        phrase_count = 0
+        for line in all_lines:
+            for p, _, _ in line:
+                if p == phrase and phrase_count <= phrase_idx:
+                    break
+                phrase_count += 1
+            if phrase_count > phrase_idx:
+                break
+            line_idx += 1
+        
+        # Calculate which of the last 2 lines this is (for positioning)
+        total_lines = len(all_lines)
+        if total_lines <= MAX_LINES:
+            display_line_idx = line_idx
+        else:
+            # Show last 2 lines
+            if line_idx >= total_lines - MAX_LINES:
+                display_line_idx = line_idx - (total_lines - MAX_LINES)
+            else:
+                display_line_idx = 0
+        
+        y_pos = CENTER_Y_START + (display_line_idx * LINE_HEIGHT)
+        
+        # Find the line this phrase is in
+        phrase_line = None
+        for line in all_lines:
+            if any(p == phrase for p, _, _ in line):
+                phrase_line = line
+                break
+        
+        if phrase_line:
+            # Calculate X position within the line
+            line_text = " ".join(p for p, _, _ in phrase_line)
+            line_width = len(line_text) * 35
+            start_x = CENTER_X - (line_width // 2)
+            
+            # Find position of this phrase in the line
+            current_x = start_x
+            phrase_found = False
+            for p, _, _ in phrase_line:
+                phrase_width = len(p) * 35
+                if p == phrase:
+                    phrase_x = current_x + (phrase_width // 2)
+                    result.append((phrase, start, end, display_line_idx, phrase_x, y_pos))
+                    phrase_found = True
+                    break
+                current_x += phrase_width + 35  # 35px for space
+            
+            if not phrase_found:
+                # Fallback: center the phrase
+                result.append((phrase, start, end, display_line_idx, CENTER_X, y_pos))
+        else:
+            # Fallback: center the phrase
+            result.append((phrase, start, end, display_line_idx, CENTER_X, y_pos))
+    
+    return result
+
+
+def write_ass_file(word_layouts, output_path, mode='word_bounce'):
+    """Write ASS file with bouncing captions (word-level or phrase-level)."""
     with open(output_path, "w", encoding="utf-8") as f:
         # ASS header - MUST include PlayResX/Y for proper positioning
         f.write("[Script Info]\n")
@@ -546,17 +700,23 @@ def write_ass_file(word_layouts, output_path):
         f.write("[Events]\n")
         f.write("Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text\n")
         
-        # Write each word as a separate Dialogue line
-        for idx, (word, start, end, line_idx, x_pos, y_pos) in enumerate(word_layouts):
+        # Write each word/phrase as a separate Dialogue line
+        for idx, (text, start, end, line_idx, x_pos, y_pos) in enumerate(word_layouts):
             bounce_tags = create_bounce_animation()
             pos_tag = f"{{\\pos({x_pos},{y_pos})}}"
-            extra_style = build_word_style_tags(word, float(start), idx)
+            
+            if mode == 'word_bounce':
+                extra_style = build_word_style_tags(text, float(start), idx)
+            else:
+                # For phrase mode, use simpler styling (first word determines highlight)
+                first_word = text.split()[0] if text.split() else text
+                extra_style = build_word_style_tags(first_word, float(start), idx)
             
             # Combine all tags: position + bounce animation
             all_tags = f"{pos_tag}{extra_style}{bounce_tags}"
             
             # Write dialogue line
-            f.write(f"Dialogue: 0,{format_ass_time(start)},{format_ass_time(end)},Default,,0,0,0,,{all_tags}{word}\n")
+            f.write(f"Dialogue: 0,{format_ass_time(start)},{format_ass_time(end)},Default,,0,0,0,,{all_tags}{text}\n")
 
 
 def main():
@@ -592,6 +752,21 @@ def main():
     duration = get_audio_duration(VOICE_MP3)
     print(f"Audio duration: {duration:.2f} seconds")
     
+    # Count words in script for auto-detection
+    word_count = len(split_into_words(script_text))
+    
+    # Auto-detect mode: if word count > 200 OR duration > 70s, use phrase_bounce
+    detected_mode = CAPTION_MODE
+    if CAPTION_MODE == 'phrase_bounce' or (word_count > 200 or duration > 70):
+        if word_count > 200 or duration > 70:
+            detected_mode = 'phrase_bounce'
+            print(f"📊 Auto-detected phrase_bounce mode (word_count={word_count}, duration={duration:.1f}s)")
+        else:
+            detected_mode = CAPTION_MODE
+            print(f"📊 Using {detected_mode} mode (from env/config)")
+    else:
+        print(f"📊 Using {detected_mode} mode (from env/config)")
+    
     # Get word-level timestamps directly from Whisper (CapCut-style auto captions)
     whisper_timings = get_word_timestamps_from_audio(VOICE_MP3, script_text)
     
@@ -615,16 +790,38 @@ def main():
         word_timings = apply_global_offset(word_timings, args.offset, clamp_end=duration)
         print(f"⏱️  Applied global caption offset: {args.offset:+.3f}s")
     
-    # Layout words
-    word_layouts = layout_words(word_timings)
-    print(f"Laid out {len(word_layouts)} words into lines")
-    
-    # Write ASS file
-    os.makedirs(os.path.dirname(OUT_ASS), exist_ok=True)
-    write_ass_file(word_layouts, OUT_ASS)
-    
-    print(f"✅ Saved bouncing captions to: {OUT_ASS}")
-    print(f"   {len(word_layouts)} word-level captions with bounce animation")
+    # Process based on mode
+    if detected_mode == 'phrase_bounce':
+        # Chunk words into phrases
+        phrase_timings = chunk_words_into_phrases(
+            word_timings,
+            max_words_per_chunk=CAPTION_MAX_WORDS_PER_CHUNK,
+            min_chunk_sec=CAPTION_MIN_CHUNK_SEC,
+            max_chunk_sec=CAPTION_MAX_CHUNK_SEC
+        )
+        print(f"📝 Chunked into {len(phrase_timings)} phrases")
+        
+        # Layout phrases
+        phrase_layouts = layout_phrases(phrase_timings)
+        print(f"Laid out {len(phrase_layouts)} phrases into lines")
+        
+        # Write ASS file with phrase mode
+        os.makedirs(os.path.dirname(OUT_ASS), exist_ok=True)
+        write_ass_file(phrase_layouts, OUT_ASS, mode='phrase_bounce')
+        
+        print(f"✅ Saved bouncing captions to: {OUT_ASS}")
+        print(f"   {len(phrase_layouts)} phrase-level captions with bounce animation")
+    else:
+        # Word-level mode (original)
+        word_layouts = layout_words(word_timings)
+        print(f"Laid out {len(word_layouts)} words into lines")
+        
+        # Write ASS file
+        os.makedirs(os.path.dirname(OUT_ASS), exist_ok=True)
+        write_ass_file(word_layouts, OUT_ASS, mode='word_bounce')
+        
+        print(f"✅ Saved bouncing captions to: {OUT_ASS}")
+        print(f"   {len(word_layouts)} word-level captions with bounce animation")
 
 
 if __name__ == "__main__":
