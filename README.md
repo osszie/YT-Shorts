@@ -1,11 +1,11 @@
 # yt-shorts-agent
 
-Automated YouTube Shorts content generation pipeline using local AI. Generates original Reddit-style stories, converts them to voice, and creates vertical videos with captions.
+Automated YouTube Shorts content generation pipeline using Google Gemini API. Generates original Reddit-style stories, converts them to voice, and creates vertical videos with captions.
 
 ## Current Status: Phase 1, 2, 3, & 4 Complete ✅
 
 ### Phase 1: Story Generation ✅
-- Generates 100% original Reddit-style stories using Ollama (qwen3:4b)
+- Generates 100% original Reddit-style stories using Google Gemini API
 - Outputs JSON with title, description, and script
 - Stories are ~300 words (270-330 word target) with improved structure and pacing
 
@@ -25,23 +25,17 @@ Automated YouTube Shorts content generation pipeline using local AI. Generates o
 
 ## Prerequisites
 - Python 3.7+
-- Ollama installed and running locally
-- qwen3:4b model downloaded (run: `ollama pull qwen3:4b`)
+- Google API Key for Gemini API (get from [Google AI Studio](https://makersuite.google.com/app/apikey))
 - FFmpeg installed (`brew install ffmpeg` on macOS)
 - Google Cloud Project with YouTube Data API v3 enabled (for Phase 4)
 
 ## Setup
 
-### 1. Install Ollama
-1. Install from https://ollama.ai
-2. Start Ollama server:
-   ```bash
-   ollama serve
-   ```
-3. Pull the qwen3:4b model:
-   ```bash
-   ollama pull qwen3:4b
-   ```
+### 1. Get Google API Key
+1. Go to [Google AI Studio](https://makersuite.google.com/app/apikey)
+2. Sign in with your Google account
+3. Click "Create API Key"
+4. Copy your API key
 
 ### 2. Install FFmpeg (macOS)
 ```bash
@@ -60,10 +54,13 @@ brew install ffmpeg
    pip install -r requirements.txt
    ```
 
-3. Copy `.env.example` to `.env` (optional - defaults work):
-   ```bash
-   cp .env.example .env
-   ```
+3. Set up environment variables:
+   - Create a `.env` file in the project root (or copy from `.env.example`)
+   - Add your Google API key:
+     ```bash
+     GOOGLE_API_KEY=your_api_key_here
+     ```
+   - Optionally configure other settings (see Configuration section below)
 
 4. Add background videos:
    - Place `.mp4` files in `assets/backgrounds/`
@@ -113,9 +110,9 @@ All generated files are in `output/` (gitignored):
 
 ### Environment Variables (`.env`)
 ```bash
-# Ollama settings
-OLLAMA_BASE_URL=http://localhost:11434
-MODEL_NAME=qwen3:4b
+# Google Gemini API settings (REQUIRED)
+GOOGLE_API_KEY=your_api_key_here  # Get from https://makersuite.google.com/app/apikey
+GEMINI_MODEL=gemini-1.5-flash  # Options: gemini-1.5-flash (fast), gemini-1.5-pro (better quality), gemini-pro
 NICHE=aita  # Options: aita, confession, relationships, creepy
 
 # Caption settings
@@ -182,8 +179,11 @@ brew install ffmpeg
 ### No background videos
 Add `.mp4` files to `assets/backgrounds/` directory
 
-### Ollama connection errors
-Ensure Ollama is running: `ollama serve`
+### Gemini API errors
+- Ensure `GOOGLE_API_KEY` is set in your `.env` file
+- Verify your API key is valid at [Google AI Studio](https://makersuite.google.com/app/apikey)
+- Check that you have API quota available
+- Try a different model if one fails (e.g., `gemini-1.5-flash` vs `gemini-1.5-pro`)
 
 ### Missing output files
 Run scripts in order: agent.py → tts.py → captions.py → render.py

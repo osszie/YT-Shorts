@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Generate 100% original 'reddit-vibes' short scripts using Ollama (local AI)
+Generate 100% original 'reddit-vibes' short scripts using Google Gemini API
 and save them to output/script.json. Phase 1 only: no Reddit, no upload, no TTS.
 """
 
@@ -11,14 +11,22 @@ import time
 import pathlib
 import re
 from dotenv import load_dotenv
-import requests
+import google.generativeai as genai
+from google.generativeai.types import RequestOptions
 
 # Load .env from project root deterministically
 load_dotenv(dotenv_path=str(pathlib.Path(__file__).resolve().parents[1] / '.env'))
 
-# Ollama configuration
-OLLAMA_BASE_URL = os.getenv('OLLAMA_BASE_URL', 'http://localhost:11434')
-MODEL_NAME = os.getenv('MODEL_NAME', 'qwen2.5:3b')  # qwen3:4b has API timeout issues
+# Gemini API configuration
+GOOGLE_API_KEY = os.getenv('GOOGLE_API_KEY')
+if not GOOGLE_API_KEY:
+    raise ValueError("GOOGLE_API_KEY environment variable is required. Set it in your .env file.")
+
+# Configure Gemini API
+genai.configure(api_key=GOOGLE_API_KEY)
+
+# Model configuration
+MODEL_NAME = os.getenv('GEMINI_MODEL', 'gemini-2.0-flash')  # Options: gemini-2.0-flash, gemini-2.5-flash, gemini-2.5-pro
 NICHE = os.getenv('NICHE', 'aita').lower()
 
 OUTPUT_PATH = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'output', 'script.json')
@@ -284,174 +292,134 @@ def build_prompt(theme):
     tease_example = random.choice(tease_examples)
     
     prompt = (
-        'You are a creative storyteller. Write a 100% ORIGINAL Reddit-style story that feels authentic and engaging. '
-        'Do NOT copy or quote any real Reddit posts, usernames, or specific stories.\n\n'
+        'You are a creative storyteller. Write a 100% ORIGINAL Reddit-style story that feels authentic and engaging.\n\n'
         
-        'LENGTH REQUIREMENT (CRITICAL):\n'
-        '- Target: 270–330 words TOTAL (count hook + tease + story body)\n'
-        '- This creates ~90–140 seconds of narration\n'
-        '- Write a FULL story with details, dialogue, and specific moments—not a summary\n'
-        '- Minimum 270 words, maximum 330 words\n\n'
+        'STORY REQUIREMENTS:\n'
+        '- Length: 270-330 words total (hook + tease + story body)\n'
+        '- Structure: First line = hook, second line = tease, rest = full story body\n'
+        '- Perspective: Write entirely in FIRST PERSON (I, me, my)\n'
+        '- Style: Natural, conversational Reddit post style\n'
+        '- Include: Specific details, timestamps, names, dialogue, concrete examples\n'
+        '- End with: A question that invites comments (e.g., "Am I wrong here?", "What would you do?")\n\n'
         
-        'STORY STRUCTURE (flow naturally, no headers or labels):\n'
-        f'{structure_guide}\n\n'
+        f'HOOK EXAMPLE: "{hook_example}"\n'
+        f'TEASE EXAMPLE: "{tease_example}"\n\n'
         
-        'HOOK EXAMPLES (first line should be scroll-stopping for YouTube):\n'
-        f'- "{hook_example}"\n'
-        '- Use varied openings: questions, shocking statements, pattern breaks, emotional triggers\n'
-        '- Make it feel urgent and relatable—something that makes viewers stop scrolling\n'
-        '- YouTube Shorts need INSTANT engagement—hook must grab attention in first 3 seconds\n'
-        '- Examples: "I thought I knew my family until last night", "This started as a small misunderstanding and exploded", "I\'m sitting here at 3 AM wondering if I\'m the problem"\n\n'
+        f'{"CREEPY STORY GUIDELINES:" if NICHE == "creepy" else ""}\n'
+        f'{"- Build atmosphere with sensory details (sounds, shadows, timing)" if NICHE == "creepy" else ""}\n'
+        f'{"- Use specific timestamps and physical details" if NICHE == "creepy" else ""}\n'
+        f'{"- Escalate tension gradually from unsettling to terrifying" if NICHE == "creepy" else ""}\n'
+        f'{"- Include realistic fear responses" if NICHE == "creepy" else ""}\n\n'
         
-        'TEASE EXAMPLES (second line builds anticipation and retention):\n'
-        f'- "{tease_example}"\n'
-        '- Vary your tease—don\'t always use "Wait for..."\n'
-        '- Examples: "But then...", "The twist was...", "I didn\'t expect...", "Here\'s what changed everything..."\n'
-        '- This line keeps viewers watching past the hook—critical for YouTube retention\n'
-        '- Build curiosity without revealing the twist\n\n'
+        'TITLE:\n'
+        '- 50-60 characters, clickable and engaging\n'
+        '- Include keywords: "Reddit Story", "AITA", "Storytime", etc.\n'
+        '- Examples: "This Reddit Story Will Blow Your Mind", "I Can\'t Believe What My Family Did | AITA"\n\n'
         
-        'STORY BODY REQUIREMENTS (optimized for YouTube engagement):\n'
-        '- Write ENTIRELY in FIRST PERSON (I, me, my, myself)\n'
-        '- The narrator is "I"—everything happens to "me" or "my" situation\n'
-        '- Include SPECIFIC details: texts, timestamps, locations, names, dialogue\n'
-        '- Add realism: "At 11:47 PM, I got a text that said...", "My sister Sarah called me...", "The group chat exploded with..."\n'
-        '- Build tension with concrete examples, not vague descriptions\n'
-        '- Include dialogue when it adds drama: "She said, \'You\'re being ridiculous.\'"\n'
-        '- Show, don\'t tell: Instead of "they were angry," write "they sent me 12 texts in 5 minutes"\n'
-        '- Add mini-hooks throughout to maintain retention (every 20-30 seconds of content)\n'
-        '- Include emotional beats that make viewers react (shock, anger, confusion, empathy)\n'
-        '- End with ONE question that invites comments: "Am I wrong here?", "Who\'s the problem?", "What would you do?"\n'
-        '- The ending question is CRITICAL for YouTube engagement—it drives comments and likes\n\n'
+        'DESCRIPTION:\n'
+        '- 1-2 sentences summarizing the story\n'
+        '- Engaging and searchable\n\n'
         
-        f'{"CREEPY STORY SPECIFIC REQUIREMENTS (if niche is creepy):" if NICHE == "creepy" else ""}\n'
-        f'{"- Build ATMOSPHERE and SUSPENSE—describe sounds, shadows, timing, physical sensations" if NICHE == "creepy" else ""}\n'
-        f'{"- Include SPECIFIC TIMESTAMPS: \"At 3:17 AM, I heard...\", \"Every night at 2:43 AM, the same sound...\"" if NICHE == "creepy" else ""}\n'
-        f'{"- Describe PHYSICAL DETAILS: \"The door handle jiggled\", \"I saw a shadow move\", \"My phone showed 3 missed calls from Unknown\"" if NICHE == "creepy" else ""}\n'
-        f'{"- Build TENSION gradually: start with something small and unsettling, escalate to something terrifying" if NICHE == "creepy" else ""}\n'
-        f'{"- Include SENSORY DETAILS: what you heard, saw, felt, smelled—make it visceral" if NICHE == "creepy" else ""}\n'
-        f'{"- Add REALISTIC FEAR RESPONSES: \"My heart started racing\", \"I froze\", \"I couldn\'t move\", \"I called the police\"" if NICHE == "creepy" else ""}\n'
-        f'{"- End with a question that invites discussion: \"Has this happened to anyone else?\", \"What would you do?\", \"Am I overreacting?\"" if NICHE == "creepy" else ""}\n'
-        f'{"- Make it feel REAL and RELATABLE—like it could happen to anyone" if NICHE == "creepy" else ""}\n\n'
-        
-        'TONE & VARIETY:\n'
-        '- Match the theme\'s vibe (AITA = conflict/drama, confession = guilt/revelation, relationships = emotional tension, creepy = unsettling mystery with building dread)\n'
-        '- Vary your sentence structure—mix short punchy sentences with longer descriptive ones\n'
-        '- Use natural language, not formal writing\n'
-        '- Add personality—let the narrator\'s voice come through\n'
-        '- Include emotional beats: frustration, confusion, shock, relief (for creepy: fear, paranoia, unease, terror)\n'
-        f'{"- For CREEPY stories: Use shorter, choppier sentences during tense moments to build urgency" if NICHE == "creepy" else ""}\n'
-        f'{"- For CREEPY stories: Create a sense of unease from the start—something is \"off\" even before the reveal" if NICHE == "creepy" else ""}\n\n'
-        
-        'CRITICAL FORMATTING RULES:\n'
-        '- NO literal labels: Do NOT write "HOOK:", "TEASE:", "Line 3+", "[Story]", etc.\n'
-        '- NO structural markers: No colons before quotes, no section headers\n'
-        '- Pure narrative text that reads like a real Reddit post\n'
-        '- First line = hook sentence\n'
-        '- Second line = tease sentence\n'
-        '- Remaining lines = full story body\n'
-        '- All in first person, flowing naturally\n\n'
-        
-        'SAFETY:\n'
-        '- No explicit sexual content\n'
-        '- No graphic violence\n'
-        '- No hateful or discriminatory content\n\n'
-        
-        'TITLE REQUIREMENTS (YouTube SEO optimized):\n'
-        '- Create a clickable, engaging title (50-60 chars ideal, max 70)\n'
-        '- Include emotional hooks: "This", "I Can\'t Believe", "Wait Until", "You Won\'t Believe"\n'
-        '- Add relevant keywords naturally: "Reddit Story", "AITA", "Storytime", "Drama"\n'
-        '- Make it searchable but not clickbait\n'
-        '- Examples: "This Reddit Story Will Blow Your Mind", "I Can\'t Believe What My Family Did | AITA", "Reddit: The Wedding Drama That Split My Family"\n'
-        '- Avoid generic titles like "Reddit Story" alone—make it specific and intriguing\n\n'
-        
-        'DESCRIPTION REQUIREMENTS (YouTube SEO optimized):\n'
-        '- Write 1-2 engaging sentences that summarize the story\n'
-        '- Include the theme/topic naturally\n'
-        '- Make it searchable and engaging\n'
-        '- Examples: "A family wedding turned into a massive argument over etiquette. Who\'s in the wrong here? #shorts"\n'
-        '- Keep it concise but descriptive (2-3 sentences max)\n\n'
-        
-        'OUTPUT FORMAT:\n'
-        'Return ONLY valid JSON (no markdown, no backticks, no explanations):\n'
+        'OUTPUT JSON FORMAT:\n'
         '{\n'
-        '  "title": "SEO-optimized clickable title (50-60 chars, includes keywords)",\n'
-        '  "description": "1–2 sentence engaging description (will add hashtags later)",\n'
+        '  "title": "Your title here",\n'
+        '  "description": "Your description here",\n'
         '  "script": "hook line\\ntease line\\nfull story body ending with question"\n'
         '}\n\n'
         
         f'Theme: {theme}\n'
         f'Niche: {NICHE}\n\n'
         
-        'Write a unique, engaging story now. Be creative, add specific details, and make it feel authentic. '
-        'Create an SEO-optimized title that will perform well on YouTube. '
-        'Remember: 270–330 words, first person only, no labels, include realism.'
+        'Write the story now. Be creative, authentic, and engaging.'
     )
     return prompt
 
 
-def call_ollama(prompt):
-    """Call Ollama API to generate text using the configured model."""
-    url = f"{OLLAMA_BASE_URL}/api/generate"
-    # Use higher temperature and top_p for more variation
-    # Temperature 1.0-1.1 for creativity, top_p 0.95 for diverse sampling
-    payload = {
-        "model": MODEL_NAME,
-        "prompt": prompt,
-        # Note: qwen3:4b may not support format: "json" properly, so we'll extract JSON manually
-        # "format": "json",  # Disabled for qwen3:4b compatibility
-        "stream": False,
-        "options": {
-            "temperature": 1.05,  # Increased for more creativity and variation
-            "top_p": 0.95,  # Nucleus sampling for diverse outputs
-            "top_k": 40,  # Consider top 40 tokens for variety
-            # Give the model enough room to finish valid JSON + a full script (270-330 words).
-            "num_predict": 2000,  # Increased for 300-word stories (need more tokens)
-        }
-    }
-    
+def call_gemini(prompt):
+    """Call Google Gemini API to generate text using the configured model."""
+    # Give Gemini enough time for story generation (~60–90s for long outputs)
+    request_options = RequestOptions(timeout=90)
     try:
-        resp = requests.post(url, json=payload, timeout=300)  # Increased timeout for longer stories
-        resp.raise_for_status()
-        data = resp.json()
+        # Initialize the model with optimized settings for Gemini
+        # Try with JSON mode first (for newer models)
+        try:
+            print(f'  🔄 Trying JSON mode with model: {MODEL_NAME}...')
+            model = genai.GenerativeModel(
+                model_name=MODEL_NAME,
+                generation_config={
+                    "temperature": 1.0,  # Good balance of creativity and consistency
+                    "top_p": 0.95,
+                    "top_k": 40,
+                    "max_output_tokens": 2048,  # More room for quality output
+                    "response_mime_type": "application/json",  # Request JSON format directly
+                }
+            )
+            response = model.generate_content(prompt, request_options=request_options)
+            if response.text and response.text.strip():
+                print(f'  ✅ JSON mode successful!')
+                return response.text
+        except Exception as json_error:
+            # JSON mode might not be supported, try without it
+            error_str = str(json_error)
+            if "quota" in error_str.lower() or "429" in error_str:
+                raise  # Re-raise quota errors immediately
+            print(f'  ⚠️  JSON mode not supported, trying without JSON mode...')
         
-        if 'response' in data:
-            response_text = data['response']
-            if not response_text or not response_text.strip():
-                print(f"⚠️  Warning: Ollama returned empty response. Full data: {data}")
-                raise RuntimeError(f"Empty response from Ollama model '{MODEL_NAME}'. Try a different model or check Ollama logs.")
-            return response_text
+        # Fallback: try without JSON mode
+        print(f'  🔄 Trying standard mode with model: {MODEL_NAME}...')
+        model = genai.GenerativeModel(
+            model_name=MODEL_NAME,
+            generation_config={
+                "temperature": 1.0,
+                "top_p": 0.95,
+                "top_k": 40,
+                "max_output_tokens": 2048,
+            }
+        )
+        response = model.generate_content(prompt, request_options=request_options)
+        
+        if not response.text or not response.text.strip():
+            raise RuntimeError(f"Empty response from Gemini model '{MODEL_NAME}'.")
+        
+        print(f'  ✅ Standard mode successful!')
+        return response.text
+    except Exception as e:
+        error_msg = str(e)
+        if "quota" in error_msg.lower() or "429" in error_msg:
+            raise RuntimeError(f"Gemini API quota exceeded. Please check your API quota or wait before retrying. Error: {e}")
+        elif "404" in error_msg or "not found" in error_msg.lower():
+            raise RuntimeError(f"Gemini model '{MODEL_NAME}' not found. Available models: gemini-2.0-flash, gemini-2.5-flash, gemini-2.5-pro")
         else:
-            raise RuntimeError(f"Unexpected Ollama response format: {data}")
-    except requests.exceptions.RequestException as e:
-        raise RuntimeError(f"Ollama API error: {e}. Make sure Ollama is running (ollama serve) and the model '{MODEL_NAME}' is available (ollama pull {MODEL_NAME})")
+            raise RuntimeError(f"Gemini API error: {e}. Make sure GOOGLE_API_KEY is set correctly and the model '{MODEL_NAME}' is available.")
 
 
 def extract_json(text):
-    """Extract JSON from model output, handling various formats and control characters."""
+    """Extract JSON from model output. Gemini typically returns clean JSON."""
     if not text or not text.strip():
         raise ValueError('Empty model output')
     
-    # Clean up common issues: remove control characters except newlines/tabs
+    # Clean up: remove markdown code blocks if present
     import re
-    cleaned = re.sub(r'[\x00-\x08\x0b\x0c\x0e-\x1f]', '', text)
+    cleaned = text.strip()
     
-    # Try direct parse first
+    # Remove markdown code blocks (```json ... ```)
+    cleaned = re.sub(r'```json\s*', '', cleaned, flags=re.I)
+    cleaned = re.sub(r'```\s*', '', cleaned)
+    
+    # Remove control characters except newlines/tabs
+    cleaned = re.sub(r'[\x00-\x08\x0b\x0c\x0e-\x1f]', '', cleaned)
+    
+    # Try direct parse first (Gemini should return clean JSON)
     try:
         return json.loads(cleaned)
-    except Exception:
+    except json.JSONDecodeError:
         pass
     
-    # Try to find JSON block (first { to last })
+    # If direct parse fails, try to find JSON block
     start = cleaned.find('{')
     end = cleaned.rfind('}')
     if start == -1 or end == -1:
-        # Try to find incomplete JSON and fix it
-        if start != -1:
-            # Found opening brace but no closing - try to add one
-            cleaned = cleaned[start:] + "\n}"
-            end = len(cleaned) - 1
-        else:
-            raise ValueError('No JSON found in model output')
+        raise ValueError('No JSON found in model output')
     
     substring = cleaned[start:end+1]
     
@@ -459,25 +427,13 @@ def extract_json(text):
     try:
         return json.loads(substring)
     except json.JSONDecodeError as e:
-        # If still failing, try to fix common issues
-        # Remove trailing commas before }
+        # Try to fix common JSON issues
         substring = re.sub(r',\s*}', '}', substring)
         substring = re.sub(r',\s*]', ']', substring)
         try:
             return json.loads(substring)
         except Exception as e2:
-            # Last resort: try to extract just the script field if everything else fails
-            script_match = re.search(r'"script"\s*:\s*"([^"]*(?:\\.[^"]*)*)"', substring, re.DOTALL)
-            title_match = re.search(r'"title"\s*:\s*"([^"]*)"', substring)
-            desc_match = re.search(r'"description"\s*:\s*"([^"]*)"', substring)
-            if script_match:
-                result = {
-                    "title": title_match.group(1) if title_match else "Reddit Story",
-                    "description": desc_match.group(1) if desc_match else "A Reddit-style story. #shorts",
-                    "script": script_match.group(1).replace('\\"', '"').replace('\\n', '\n')
-                }
-                return result
-            raise ValueError(f'Failed to parse JSON: {e2}. Text: {substring[:200]}')
+            raise ValueError(f'Failed to parse JSON: {e2}. Text: {substring[:300]}')
 
 
 def save_output(obj, theme: str = None):
@@ -890,84 +846,137 @@ def normalize_script(script: str, theme: str) -> str:
 def main():
     # Randomize theme selection for more variety
     theme = random.choice(theme_list)
-    print('Theme:', theme)
-    print(f'Using model: {MODEL_NAME} (temperature=1.05, top_p=0.95 for variation)')
+    print('\n' + '=' * 70)
+    print('🎬 YOUTUBE SHORTS SCRIPT GENERATOR')
+    print('=' * 70)
+    print(f'Theme: {theme}')
+    print(f'Using Gemini model: {MODEL_NAME}')
+    print('=' * 70 + '\n')
+    
     prompt = build_prompt(theme)
+    gemini_success = False
 
     # One retry: if parsing fails, try again with a stricter instruction
     for attempt in range(2):
         if attempt == 1:
-            print('Retrying with stricter JSON-only instruction...')
+            print('🔄 Retrying with stricter JSON-only instruction...')
             prompt = 'IMPORTANT: Return ONLY valid JSON, no markdown, no backticks, no explanations. JSON schema: {"title": "...", "description": "...", "script": "..."}\n\n' + prompt
             time.sleep(1)
+        
+        print(f'📡 Attempting Gemini API call (attempt {attempt + 1}/2)...')
         try:
-            raw = call_ollama(prompt)
+            raw = call_gemini(prompt)
+            print('✅ Gemini API call successful!')
+            gemini_success = True
         except Exception as e:
-            print(f'Ollama API call failed (attempt {attempt + 1}/2): {e}')
+            error_msg = str(e)
+            if "quota" in error_msg.lower() or "429" in error_msg:
+                print(f'❌ Gemini API quota exceeded: {e}')
+                print('⚠️  Will use fallback template script')
+            elif "404" in error_msg or "not found" in error_msg.lower():
+                print(f'❌ Gemini model not found: {e}')
+                print('⚠️  Will use fallback template script')
+            else:
+                print(f'❌ Gemini API call failed (attempt {attempt + 1}/2): {e}')
+            
             if attempt == 1:
                 # Last attempt failed, use fallback
-                print('Using fallback template script...')
+                print('\n⚠️  All Gemini API attempts failed. Using fallback template script...')
                 break
             continue
 
+        if not gemini_success:
+            continue
+
         try:
+            print('🔍 Parsing JSON response from Gemini...')
             obj = extract_json(raw)
+            print('✅ JSON parsed successfully')
         except Exception as e:
-            print('Failed to parse JSON from model output:', e)
-            print('Model output was:\n', raw)
+            print(f'❌ Failed to parse JSON from model output: {e}')
+            print('📄 Model output preview:\n', raw[:500] + '...' if len(raw) > 500 else raw)
             continue
 
         # Validate
+        print('🔍 Validating output structure...')
+        validation_failed = False
         for k in ('title', 'description', 'script'):
             if k not in obj:
-                print(f"Output missing '{k}'")
-                print('Model output was:\n', raw)
+                print(f"❌ Output missing '{k}'")
+                print('📄 Model output was:\n', raw[:500])
+                validation_failed = True
                 break
 
             # Some models mistakenly return script as an object; reject so we retry.
             if k == 'script' and not isinstance(obj[k], str):
-                print("Output has invalid 'script' (must be a string, not an object).")
-                print('Model output was:\n', raw)
+                print(f"❌ Output has invalid 'script' (must be a string, not an object).")
+                print('📄 Model output was:\n', raw[:500])
+                validation_failed = True
                 break
 
             if not isinstance(obj[k], str) or not obj[k].strip():
-                print(f"Output missing or invalid '{k}'")
+                print(f"❌ Output missing or invalid '{k}'")
                 if attempt == 1:
-                    print('Model output was:\n', raw[:500])  # Show first 500 chars
+                    print('📄 Model output was:\n', raw[:500])  # Show first 500 chars
+                validation_failed = True
                 break
-        else:
-            # Normalize weak model outputs into the required hook/tease/body format.
+        
+        if validation_failed:
+            continue
+        
+        print('✅ Output validation passed')
+        
+        # Light normalization - Gemini should already follow the format well
+        # Only normalize if script doesn't have proper structure
+        script_lines = obj["script"].split('\n')
+        if len(script_lines) < 2 or not any('?' in line for line in script_lines[-3:]):
+            print('🔧 Normalizing script structure...')
             obj["script"] = normalize_script(obj["script"], theme)
-            
-            # Validate script length (should be 270-330 words, accept 240-360)
-            word_count = _word_count(obj["script"])
-            if word_count < 240:
-                print(f"⚠️  Warning: Script is short ({word_count} words, target 270-330), but continuing...")
-            elif word_count > 360:
-                print(f"⚠️  Warning: Script is long ({word_count} words, target 270-330), but continuing...")
-            elif 270 <= word_count <= 330:
-                print(f"✅ Script length: {word_count} words (target: 270-330)")
+        
+        # Validate script length (should be 270-330 words, accept 240-360)
+        word_count = _word_count(obj["script"])
+        if word_count < 240:
+            print(f"⚠️  Warning: Script is short ({word_count} words, target 270-330), but continuing...")
+        elif word_count > 360:
+            print(f"⚠️  Warning: Script is long ({word_count} words, target 270-330), but continuing...")
+        elif 270 <= word_count <= 330:
+            print(f"✅ Script length: {word_count} words (target: 270-330)")
 
-            # Apply SEO optimization before saving
-            out_path = save_output(obj, theme)
-            print('✅ Saved generated script to', out_path)
-            print(f'📊 SEO Title: {obj["title"]} ({len(obj["title"])} chars)')
-            print('\nPreview:\n')
-            print('Title:', obj['title'])
-            print('Description:\n', obj['description'])
-            print('Script:\n', obj['script'])
-            return
+        # Apply SEO optimization before saving
+        print('📝 Applying SEO optimization...')
+        out_path = save_output(obj, theme)
+        print('\n' + '=' * 70)
+        print('✅ SUCCESS - Generated script using Gemini API')
+        print('=' * 70)
+        print(f'📁 Saved to: {out_path}')
+        print(f'📊 SEO Title: {obj["title"]} ({len(obj["title"])} chars)')
+        print(f'📏 Word count: {word_count} words')
+        print('\n📄 Preview:\n')
+        print('Title:', obj['title'])
+        print('\nDescription:\n', obj['description'])
+        print('\nScript (first 200 chars):\n', obj['script'][:200] + '...' if len(obj['script']) > 200 else obj['script'])
+        print('\n' + '=' * 70)
+        return
 
     # If we get here, all attempts failed - use fallback
-    print('\n⚠️  Failed to generate valid JSON after retries. Using fallback template script.')
+    print('\n' + '=' * 70)
+    print('⚠️  FALLBACK MODE - Using template script')
+    print('=' * 70)
+    print('Reason: Gemini API unavailable or failed')
+    print('=' * 70 + '\n')
+    
     obj = fallback_story(theme)
     out_path = save_output(obj, theme)
-    print('Saved fallback script to', out_path)
+    
+    print('✅ Saved fallback script to', out_path)
     print(f'📊 SEO Title: {obj["title"]} ({len(obj["title"])} chars)')
-    print('\nPreview:\n')
+    word_count = _word_count(obj["script"])
+    print(f'📏 Word count: {word_count} words')
+    print('\n📄 Preview:\n')
     print('Title:', obj['title'])
-    print('Description:\n', obj['description'])
-    print('Script:\n', obj['script'])
+    print('\nDescription:\n', obj['description'])
+    print('\nScript (first 200 chars):\n', obj['script'][:200] + '...' if len(obj['script']) > 200 else obj['script'])
+    print('\n' + '=' * 70)
 
 
 if __name__ == '__main__':
