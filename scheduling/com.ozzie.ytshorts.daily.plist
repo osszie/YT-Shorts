@@ -1,0 +1,42 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+  <dict>
+    <key>Label</key>
+    <string>com.ozzie.ytshorts.daily</string>
+
+    <key>ProgramArguments</key>
+    <array>
+      <string>/bin/bash</string>
+      <string>/Users/ozzie/Desktop/AI Youtube Shorts/yt-shorts-agent/scripts/run_scheduled.sh</string>
+    </array>
+
+    <!-- Run every day at 10:00 -->
+    <key>StartCalendarInterval</key>
+    <dict>
+      <key>Hour</key>
+      <integer>10</integer>
+      <key>Minute</key>
+      <integer>0</integer>
+    </dict>
+
+    <!-- Make sure PATH exists for subprocess tools (ffmpeg) -->
+    <key>EnvironmentVariables</key>
+    <dict>
+      <key>PATH</key>
+      <string>/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin</string>
+      <!-- Default to unlisted; change to public if you want -->
+      <key>YOUTUBE_PRIVACY_STATUS</key>
+      <string>unlisted</string>
+    </dict>
+
+    <key>StandardOutPath</key>
+    <string>/Users/ozzie/Desktop/AI Youtube Shorts/yt-shorts-agent/logs/launchd.out.log</string>
+    <key>StandardErrorPath</key>
+    <string>/Users/ozzie/Desktop/AI Youtube Shorts/yt-shorts-agent/logs/launchd.err.log</string>
+
+    <key>RunAtLoad</key>
+    <false/>
+  </dict>
+</plist>
+

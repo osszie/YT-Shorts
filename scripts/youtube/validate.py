@@ -78,7 +78,7 @@ def validate_video_file(video_path: pathlib.Path) -> Tuple[bool, List[str]]:
             '-of', 'default=noprint_wrappers=1:nokey=1',
             str(video_path)
         ]
-        result = subprocess.run(cmd, capture_output=True, text=True, timeout=10)
+        result = subprocess.run(cmd, capture_output=True, text=True, timeout=60)
         
         if result.returncode != 0:
             errors.append(f"❌ ffprobe failed: {result.stderr}")
