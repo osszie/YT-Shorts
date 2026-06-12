@@ -1,0 +1,55 @@
+# Surface variation (STRATEGY.md §2 — "Vary the surface"). Rotate voices, caption
+# treatments and intro styles across a small set so that identical
+# voice+music+motion never becomes an automation fingerprint, even when scripts
+# already differ. A niche chooses which of these ids it draws from.
+
+# Edge-TTS voices. rate/pitch are passed straight to edge_tts.Communicate.
+voices:
+  - id: guy
+    edge_voice: en-US-GuyNeural
+    rate: "+6%"
+    pitch: "+0Hz"
+  - id: aria
+    edge_voice: en-US-AriaNeural
+    rate: "+8%"
+    pitch: "+0Hz"
+  - id: christopher
+    edge_voice: en-US-ChristopherNeural
+    rate: "+5%"
+    pitch: "+0Hz"
+  - id: jenny
+    edge_voice: en-US-JennyNeural
+    rate: "+7%"
+    pitch: "+0Hz"
+  - id: eric
+    edge_voice: en-US-EricNeural
+    rate: "+6%"
+    pitch: "+0Hz"
+
+# ASS caption treatments. Colours are ASS BGR (&Hbbggrr&).
+caption_styles:
+  - id: bold_yellow
+    fontname: Arial
+    fontsize: 72
+    primary: "&H0000FFFF&"     # yellow
+    outline: "&H00000000&"     # black
+    highlight: "&H0000A5FF&"   # orange emphasis
+  - id: clean_white
+    fontname: Arial
+    fontsize: 70
+    primary: "&H00FFFFFF&"     # white
+    outline: "&H00000000&"
+    highlight: "&H0000D7FF&"   # gold emphasis
+  - id: punch_green
+    fontname: Arial
+    fontsize: 74
+    primary: "&H00FFFFFF&"     # white
+    outline: "&H00000000&"
+    highlight: "&H0000FF00&"   # green emphasis
+
+# Intro treatments. sfx=true adds the subtle pop+whoosh on the hook.
+intro_styles:
+  - id: pop
+    sfx: true
+  - id: clean
+    sfx: false

@@ -1,0 +1,35 @@
+# Angle lenses — each topic is run through these to produce a specific TAKE,
+# not a fact recitation. This is "Half 1 — inject at generation" from
+# STRATEGY.md §2: separate ANGLE from SCRIPT. We first pick a lens + angle,
+# gate it, THEN write the script to defend that thesis.
+lenses:
+  surprise:
+    name: Surprise
+    summary: "The weird thing nobody knows."
+    prompt: >
+      Find the single most counterintuitive or little-known fact about the
+      subject and build the entire take around that one surprise.
+  hot_take:
+    name: Hot take
+    summary: "Everyone believes X, actually Y."
+    prompt: >
+      Identify a common assumption about the subject and argue, with concrete
+      evidence, why the truth is the opposite of what people assume.
+  hidden_connection:
+    name: Hidden connection
+    summary: "What this secretly reveals about something bigger."
+    prompt: >
+      Connect the subject to a surprising larger system (economics, psychology,
+      history, physics) that the viewer would never associate with it.
+  what_if:
+    name: What if
+    summary: "Imagine if this didn't exist."
+    prompt: >
+      Explore a vivid counterfactual: what would change if the subject worked
+      differently, or simply did not exist? Trace the consequences.
+  big_meaning:
+    name: Big meaning
+    summary: "Why this matters more than you think."
+    prompt: >
+      Reframe a mundane subject as quietly important, revealing the real stakes
+      hidden inside something people walk past every day.

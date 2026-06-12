@@ -1,0 +1,246 @@
+#!/usr/bin/env python3
+"""yt-shorts pipeline CLI.
+
+Realizes "the dial" from STRATEGY.md §2: generation is automated; humans steer at
+two batched gates only. Typical weekly loop:
+
+  python cli.py new --count 20            # create jobs, auto-run to the ANGLE gate
+  python cli.py angles                    # review proposed angles (batched)
+  python cli.py approve-angle <id> --pick 2
+  python cli.py run --all                 # script -> ... -> metadata, park at PUBLISH gate
+  python cli.py publish-queue             # review finished videos (batched)
+  python cli.py approve-publish <id>      # approve, then upload (dry-run by default)
+
+Everything between the gates runs untouched.
+"""
+from __future__ import annotations
+
+import argparse
+import sys
+
+from pipeline.config import DEFAULT_NICHE, list_niches, load_config
+from pipeline.job import (Job, all_jobs, STATUS_AWAITING_ANGLE,
+                          STATUS_AWAITING_PUBLISH, STATUS_DONE, STATUS_FAILED,
+                          STATUS_REJECTED)
+from pipeline.orchestrator import run_job
+
+
+def _cfg_for(job: Job):
+    return load_config(job.niche)
+
+
+def _short(text: str, n: int = 60) -> str:
+    text = (text or "").replace("\n", " ")
+    return text if len(text) <= n else text[: n - 1] + "…"
+
+
+# --- commands -------------------------------------------------------------
+
+def cmd_new(args) -> int:
+    cfg = load_config(args.niche)
+    print(f"Creating {args.count} job(s) for niche '{cfg.niche_id}', running to the ANGLE gate...\n")
+    for i in range(args.count):
+        job = Job.create(cfg.niche_id)
+        print(f"[{i + 1}/{args.count}] {job.id}")
+        status = run_job(job, cfg, stop_before_upload=True)
+        sub = job.data.get("subject", "?")
+        print(f"    → {status}: {_short(sub)}\n")
+    print("Done. Review angles with:  python cli.py angles")
+    return 0
+
+
+def cmd_run(args) -> int:
+    jobs = _select(args)
+    if not jobs:
+        print("No matching jobs.")
+        return 1
+    for job in jobs:
+        cfg = _cfg_for(job)
+        print(f"\n=== {job.id} ({job.niche}) ===")
+        status = run_job(job, cfg, force=args.force, stop_before_upload=not args.with_upload)
+        print(f"→ {status}")
+    return 0
+
+
+def cmd_angles(args) -> int:
+    awaiting = [j for j in all_jobs() if j.status == STATUS_AWAITING_ANGLE]
+    if not awaiting:
+        print("No jobs awaiting the angle gate.")
+        return 0
+    print(f"{len(awaiting)} job(s) awaiting the ANGLE gate:\n")
+    for job in awaiting:
+        print(f"● {job.id}  [{job.niche}]  lens={job.data.get('lens')} format={job.data.get('format')}")
+        print(f"  subject: {job.data.get('subject')}")
+        for idx, cand in enumerate(job.data.get("angle_candidates", []), 1):
+            mark = "›" if cand == job.data.get("angle") else " "
+            print(f"   {mark}{idx}. {cand}")
+        print()
+    print("Approve with:  python cli.py approve-angle <id> [--pick N | --edit \"...\"]")
+    print("Batch-approve defaults:  python cli.py approve-angle --all")
+    return 0
+
+
+def cmd_approve_angle(args) -> int:
+    targets = all_jobs() if args.all else [Job.load(args.job_id)]
+    targets = [j for j in targets if j.status == STATUS_AWAITING_ANGLE] if args.all else targets
+    if not targets:
+        print("Nothing to approve.")
+        return 1
+    for job in targets:
+        candidates = job.data.get("angle_candidates", [])
+        if args.edit:
+            job.data["angle"] = args.edit
+        elif args.pick and 1 <= args.pick <= len(candidates):
+            job.data["angle"] = candidates[args.pick - 1]
+        job.approve_gate("angle", note=_short(job.data.get("angle", ""), 80))
+        job.save()
+        cfg = _cfg_for(job)
+        print(f"✓ {job.id}: angle approved → {_short(job.data['angle'], 70)}")
+        status = run_job(job, cfg, stop_before_upload=True)
+        print(f"    → {status}")
+    print("\nReview finished videos with:  python cli.py publish-queue")
+    return 0
+
+
+def cmd_publish_queue(args) -> int:
+    awaiting = [j for j in all_jobs() if j.status == STATUS_AWAITING_PUBLISH]
+    if not awaiting:
+        print("No jobs awaiting the publish gate.")
+        return 0
+    print(f"{len(awaiting)} job(s) awaiting the PUBLISH gate:\n")
+    for job in awaiting:
+        meta = job.data.get("metadata", {})
+        sim = job.data.get("similarity", {})
+        print(f"● {job.id}  [{job.niche}]")
+        print(f"  title:   {meta.get('title')}")
+        print(f"  subject: {job.data.get('subject')}")
+        print(f"  sim:     cos={sim.get('score')} (threshold {sim.get('threshold')})")
+        print(f"  video:   {job.artifact('final.mp4')}")
+        print()
+    print("Approve with:  python cli.py approve-publish <id>   (uploads; dry-run unless YOUTUBE_DRY_RUN=false)")
+    return 0
+
+
+def cmd_approve_publish(args) -> int:
+    targets = [j for j in all_jobs() if j.status == STATUS_AWAITING_PUBLISH] if args.all else [Job.load(args.job_id)]
+    if not targets:
+        print("Nothing to approve.")
+        return 1
+    for job in targets:
+        job.approve_gate("publish")
+        job.save()
+        cfg = _cfg_for(job)
+        print(f"✓ {job.id}: publish approved")
+        status = run_job(job, cfg, force=False, stop_before_upload=False)
+        print(f"    → {status}")
+    return 0
+
+
+def cmd_reject(args) -> int:
+    job = Job.load(args.job_id)
+    job.status = STATUS_REJECTED
+    job.log("reject", args.reason or "")
+    job.save()
+    print(f"✗ {job.id} rejected.")
+    return 0
+
+
+def cmd_status(args) -> int:
+    jobs = all_jobs()
+    if not jobs:
+        print("No jobs yet. Create some:  python cli.py new --count 5")
+        return 0
+    buckets: dict[str, int] = {}
+    print(f"{'JOB':<24} {'NICHE':<16} {'STATUS':<18} {'STAGE':<16} SUBJECT")
+    print("-" * 100)
+    for job in jobs:
+        buckets[job.status] = buckets.get(job.status, 0) + 1
+        print(f"{job.id:<24} {job.niche:<16} {job.status:<18} {job.stage:<16} {_short(job.data.get('subject',''), 32)}")
+    print("-" * 100)
+    print("  ".join(f"{k}={v}" for k, v in sorted(buckets.items())))
+    return 0
+
+
+def cmd_show(args) -> int:
+    import json
+    job = Job.load(args.job_id)
+    print(json.dumps({
+        "id": job.id, "niche": job.niche, "status": job.status, "stage": job.stage,
+        "error": job.error, "gates": job.gates, "data": job.data,
+    }, indent=2, ensure_ascii=False))
+    return 0
+
+
+def cmd_niches(args) -> int:
+    print("Available niches (default: %s):" % DEFAULT_NICHE)
+    for n in list_niches():
+        cfg = load_config(n)
+        marker = "*" if n == DEFAULT_NICHE else " "
+        print(f" {marker} {n:<16} {cfg.niche.get('name','')}")
+    return 0
+
+
+# --- selection helper -----------------------------------------------------
+
+def _select(args) -> list[Job]:
+    if getattr(args, "all", False):
+        statuses = {STATUS_AWAITING_ANGLE, STATUS_AWAITING_PUBLISH, STATUS_FAILED, "active"}
+        return [j for j in all_jobs() if j.status in statuses]
+    if getattr(args, "job_id", None):
+        return [Job.load(args.job_id)]
+    return []
+
+
+def build_parser() -> argparse.ArgumentParser:
+    p = argparse.ArgumentParser(description="yt-shorts originality pipeline")
+    sub = p.add_subparsers(dest="command", required=True)
+
+    s = sub.add_parser("new", help="create jobs and run to the angle gate")
+    s.add_argument("--niche", default=DEFAULT_NICHE)
+    s.add_argument("--count", type=int, default=1)
+    s.set_defaults(func=cmd_new)
+
+    s = sub.add_parser("run", help="advance job(s) through automated stages")
+    s.add_argument("job_id", nargs="?")
+    s.add_argument("--all", action="store_true")
+    s.add_argument("--force", action="store_true", help="rerun stages even if done")
+    s.add_argument("--with-upload", action="store_true", help="do not stop before upload")
+    s.set_defaults(func=cmd_run)
+
+    sub.add_parser("angles", help="list jobs awaiting the angle gate").set_defaults(func=cmd_angles)
+
+    s = sub.add_parser("approve-angle", help="approve/pick an angle (batched gate 1)")
+    s.add_argument("job_id", nargs="?")
+    s.add_argument("--all", action="store_true", help="approve all awaiting (uses default pick)")
+    s.add_argument("--pick", type=int, help="choose candidate N")
+    s.add_argument("--edit", help="replace the angle with custom text")
+    s.set_defaults(func=cmd_approve_angle)
+
+    sub.add_parser("publish-queue", help="list jobs awaiting the publish gate").set_defaults(func=cmd_publish_queue)
+
+    s = sub.add_parser("approve-publish", help="approve publish + upload (batched gate 2)")
+    s.add_argument("job_id", nargs="?")
+    s.add_argument("--all", action="store_true")
+    s.set_defaults(func=cmd_approve_publish)
+
+    s = sub.add_parser("reject", help="reject a job")
+    s.add_argument("job_id")
+    s.add_argument("--reason", default="")
+    s.set_defaults(func=cmd_reject)
+
+    s = sub.add_parser("show", help="dump a job record as JSON")
+    s.add_argument("job_id")
+    s.set_defaults(func=cmd_show)
+
+    sub.add_parser("status", help="overview of all jobs").set_defaults(func=cmd_status)
+    sub.add_parser("niches", help="list available niches").set_defaults(func=cmd_niches)
+    return p
+
+
+def main() -> int:
+    args = build_parser().parse_args()
+    return args.func(args)
+
+
+if __name__ == "__main__":
+    sys.exit(main())
