@@ -1,52 +1,46 @@
-# yt-shorts-agent - Project Vision
+# yt-shorts — Project Vision
 
-## Overall Goal
-Automate the creation of YouTube Shorts content using AI-generated Reddit-style stories, complete with voice narration and video editing.
+## Goal
+Automate YouTube Shorts production **without** tripping YouTube's 2025
+inauthenticity rules — which demonetize templated, mass-produced AI content at the
+channel level. The product is not "a script generator"; it is a system that
+produces genuine per-video variation and a real point of view, with a thin human
+steering layer.
 
-## Why Local Ollama?
-We chose Ollama for Phase 1 because:
-- **No API costs**: Run models locally, completely free
-- **Privacy**: Your prompts and generated content never leave your machine
-- **Reliability**: No dependency on external API availability or rate limits
-- **Flexibility**: Easy to switch models or experiment with different ones
-- **Performance**: Fast inference on modern hardware (especially Apple Silicon)
+See **[`STRATEGY.md`](STRATEGY.md)** for the full reasoning. The short version:
 
-## Architecture Overview
+- **AI is allowed; sameness is not.** One template + swap-the-topic is exactly the
+  pattern that gets channels demonetized.
+- So originality is **injected at generation** (angle engine, format bank,
+  grounding, surface variation) and **enforced at a gate before publish**
+  (similarity guard + two batched human gates).
+- The system is **niche-agnostic** — niches are config. Default niche is
+  *"the hidden ___ of everyday things"* (original by default, deep automation,
+  high curiosity-gap retention).
 
-### Phase 1: Story Generation ✅ COMPLETE
-- **Status**: Working
-- **Tech**: Ollama + phi3:mini
-- **Output**: JSON files with title, description, and script
-- **Location**: `output/script.json`
+## Architecture at a glance
+Each video is a **job** in an idempotent state machine. Stages read/write a shared
+job record, so reruns resume failed steps for free.
 
-### Phase 2: Voice Synthesis ✅ COMPLETE
-- Text-to-Speech conversion using Edge TTS
-- Natural-sounding narration
-- Multiple voice options
-- Audio file generation
+```
+idea → angle engine → [ANGLE GATE] → script (grounded) → similarity guard
+     → assets → voice → captions → assemble → metadata → [PUBLISH GATE] → upload
+```
 
-### Phase 3: Video Creation ✅ COMPLETE
-- Background visuals (stock footage from assets/backgrounds/)
-- Text overlays (burned-in captions)
-- Audio synchronization
-- Export to YouTube-ready format (1080x1920)
+## Tech stack
+- **LLM:** Google Gemini — one model, distinct prompt per stage; web-search
+  grounding for factual niches; embeddings for the similarity guard.
+- **TTS:** Edge TTS, voice rotated per video.
+- **Captions:** Whisper word timing → styled ASS.
+- **Assembly:** FFmpeg (9:16, branded, fast pacing).
+- **Upload:** YouTube Data API v3 (resumable, scheduled, dry-run safe).
+- **Config:** YAML (niches, lenses, formats, surface).
 
-### Phase 4: YouTube Upload ✅ COMPLETE
-- Automated upload via YouTube Data API v3
-- Metadata management (title, description, tags from script.json)
-- Scheduling support (delayed publishing)
-- OAuth2 authentication with token persistence
+## The dial
+Current setting: automate generation fully; humans gate at **angle + publish**,
+both batched. The design goal is the lowest human-touch point that still clears the
+originality bar — and to keep that dial in config, not code.
 
-## Current Tech Stack
-- **Python 3.7+**: Core language
-- **Ollama**: Local LLM inference
-- **phi3:mini**: 3.8B parameter model (fast, efficient, good quality)
-- **python-dotenv**: Environment variable management
-- **requests**: HTTP client for Ollama API
-
-## Future Considerations
-- Model switching (support for larger models when needed)
-- Batch generation
-- Content quality filtering
-- A/B testing different story styles
-- Analytics and performance tracking
+## Future (deliberately deferred)
+Dashboard, trend detection, A/B testing, multi-language, thumbnails. None matter
+until the pipeline reliably produces videos a human would actually watch.

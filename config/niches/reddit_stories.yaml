@@ -1,0 +1,45 @@
+# Kept available, but NOT the default. STRATEGY.md §3 flags this niche as the
+# single most demonetization-prone: it hits ALL the 2025 inauthenticity flags
+# (read text, AI voice, borrowed pattern, one template). The originality layer
+# (angle engine + similarity guard + gates) is applied here too, but prefer
+# hidden_things for new channels.
+id: reddit_stories
+name: "Original first-person stories"
+description: >
+  AI-written 100% original first-person stories with a hook, a tease and a
+  twist. Original micro-stories carry the addictiveness of Reddit stories with
+  none of the reused-content risk — provided they are genuinely written, not
+  reposted.
+
+idea:
+  lens_domains: [drama, suspense, relationships]
+  seeds:
+    - a family secret that surfaces at the worst moment
+    - a roommate boundary that quietly escalates
+    - a small lie that snowballs
+    - a stranger who knows too much
+    - a favour that comes with strings attached
+    - a misunderstanding in a group chat
+    - an inheritance that splits a family
+    - a neighbour acting strangely at night
+    - a coworker taking credit for the wrong thing
+    - a reunion that goes sideways
+
+lenses: [surprise, hot_take, hidden_connection, what_if, big_meaning]
+formats: [mini_narrative, single_question, commentary]
+
+script:
+  target_words: [120, 160]          # ~40-50s spoken
+  perspective: >
+    First person, conversational and dramatic. Hook on line 1, tease on line 2,
+    body that builds to a twist, end on a question that invites debate.
+  grounding: false                  # fiction — do not ground in real sources
+
+metadata:
+  base_hashtags: ["#shorts", "#story", "#storytime"]
+  category_id: "24"                 # Entertainment
+
+surface:
+  voices: [guy, christopher, eric]
+  caption_styles: [bold_yellow, punch_green]
+  intro_styles: [pop, clean]

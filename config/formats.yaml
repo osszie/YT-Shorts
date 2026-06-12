@@ -1,0 +1,26 @@
+# Structural skeletons (the "Format bank, not a template" from STRATEGY.md §2).
+# Maintain 6-8 shapes and rotate per video: same branding, different skeletons.
+# Identical structure every time is an automation fingerprint even when the
+# topic changes.
+formats:
+  countdown:
+    name: Countdown
+    structure: "Hook → 3 escalating points counting down → punchline reveal → CTA."
+  single_question:
+    name: Single-question investigation
+    structure: "Open on one specific question → investigate step by step → answer with the twist → CTA."
+  myth_bust:
+    name: Myth-bust
+    structure: "State the myth everyone believes → dismantle it with the real mechanism → land the correction → CTA."
+  mini_narrative:
+    name: Mini-narrative
+    structure: "A tiny story with a character or moment → the reveal that recontextualizes it → CTA."
+  comparison:
+    name: Comparison
+    structure: "Put two things side by side → the surprising difference (or sameness) → why it matters → CTA."
+  what_if:
+    name: What-if
+    structure: "Pose a vivid counterfactual → trace the consequences → snap back to reality → CTA."
+  commentary:
+    name: Commentary
+    structure: "Show the thing → deliver a sharp point of view → back it with one hard fact → CTA."

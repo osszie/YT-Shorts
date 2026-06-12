@@ -25,3 +25,7 @@ logs/
 __pycache__/
 *.pyc
 .venv/
+
+# Per-job records, media artifacts and the similarity catalog (local state)
+jobs/
+catalog/

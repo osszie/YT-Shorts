@@ -1,0 +1,59 @@
+# Default niche — "The hidden ___ of everyday things" (STRATEGY.md §3, the
+# recommended leading candidate). Pick one lens-domain (engineering / economics /
+# psychology / history) and own it. Original by default (explaining, not
+# reusing), deep automation, high curiosity-gap retention, saturated only at the
+# generic "random facts" level — wide open at the specific level.
+id: hidden_things
+name: "The Hidden ___ of Everyday Things"
+description: >
+  Reveal the hidden engineering, economics, psychology or history inside
+  ordinary objects. Why a wax seal is on a Babybel; why airport carpets look the
+  way they do; the economics of everyday objects.
+
+# One job starts from a concrete subject. Seeds prime variety; with an LLM key
+# the idea stage generates fresh subjects in the same spirit and avoids repeats.
+idea:
+  lens_domains: [engineering, economics, psychology, history]
+  seeds:
+    - the wax shell on a Babybel cheese
+    - the pattern on airport carpets
+    - why bricks have three holes
+    - the dimples on a golf ball
+    - the tiny hole in airplane windows
+    - why school buses are yellow
+    - the loop on the back of a dress shirt
+    - the rivets on the corners of jeans pockets
+    - the arrow next to the fuel gauge icon
+    - the cotton stuffed in medicine bottles
+    - the small fifth pocket inside jeans
+    - why coins have ridged edges
+    - the bumps on the F and J keyboard keys
+    - the red layer in striped toothpaste
+    - why elevators have mirrors
+    - the holes in the bottom of stadium seats
+    - the blue liquid in deodorant commercials
+    - why pencils are painted yellow
+    - the expiration date printed on bottled water
+    - the little arrow on a road-sign exit number
+
+# Which shared lenses / formats this niche draws from (see config/lenses.yaml,
+# config/formats.yaml). Rotated per video.
+lenses: [surprise, hot_take, hidden_connection, what_if, big_meaning]
+formats: [countdown, single_question, myth_bust, mini_narrative, comparison, what_if, commentary]
+
+script:
+  target_words: [110, 150]          # ~35-45s spoken
+  perspective: >
+    Confident, curious explainer voice. Address the viewer directly where
+    natural ("you've walked past this a thousand times"). No "Reddit", no
+    fake first-person drama. Specific and true.
+  grounding: true                   # pull real, current facts via web search
+
+metadata:
+  base_hashtags: ["#shorts", "#didyouknow", "#hiddendetails", "#everydaythings", "#engineering"]
+  category_id: "27"                 # Education
+
+surface:
+  voices: [guy, aria, christopher, jenny, eric]
+  caption_styles: [bold_yellow, clean_white, punch_green]
+  intro_styles: [pop, clean]

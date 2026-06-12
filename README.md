@@ -1,200 +1,140 @@
-# yt-shorts-agent
+# yt-shorts
 
-Automated YouTube Shorts content generation pipeline using Google Gemini API. Generates original Reddit-style stories, converts them to voice, and creates vertical videos with captions.
+An **originality-first** pipeline for automated YouTube Shorts. It is built around
+one hard constraint: YouTube's 2025 Partner Program rules demonetize
+mass-produced, templated, faceless AI content *at the channel level*. So this repo
+does the opposite of "one template, swap the topic" — it injects originality at
+generation and enforces it at a gate before publish.
 
-## Current Status: Phase 1, 2, 3, & 4 Complete ✅
+> Read [`STRATEGY.md`](STRATEGY.md) first. It explains *why* the architecture
+> looks the way it does. This README is the *how*.
 
-### Phase 1: Story Generation ✅
-- Generates 100% original Reddit-style stories using Google Gemini API
-- Outputs JSON with title, description, and script
-- Stories are ~300 words (270-330 word target) with improved structure and pacing
+## What it does
 
-### Phase 2: Voice Synthesis ✅
-- Converts script to MP3 audio using Microsoft Edge TTS (free)
-- Configurable voice, rate, and pitch
+Every video is a **job** moving through an idempotent state machine, steered by a
+human at exactly **two batched gates**:
 
-### Phase 3: Video Generation ✅
-- Creates timed SRT captions from script and audio
-- Renders 1080x1920 vertical video with background, voice, and burned-in captions
+```
+idea → angle engine → [ANGLE GATE] → script (grounded) → similarity guard
+     → assets (rotated voice/captions/intro) → voice → captions → assemble
+     → metadata → [PUBLISH GATE] → upload
+```
 
-### Phase 4: YouTube Upload ✅
-- Automated upload to YouTube via YouTube Data API v3
-- Metadata management (title, description, tags from script.json)
-- Scheduling support for delayed publishing
-- OAuth2 authentication with token persistence
+The originality layer:
+- **Angle engine** — separates the *angle* (a specific take, via rotating lenses)
+  from the *script*, so videos argue a thesis instead of reciting facts.
+- **Format bank** — 6–8 structural skeletons rotated per video.
+- **Source grounding** — factual niches pull real, current facts via web search.
+- **Surface variation** — voices, caption treatments and intro styles rotate.
+- **Similarity guard** — embeds every finished script and rejects/regenerates
+  anything too close to the back catalog.
+- **Two human gates** — approve the angle, approve the publish. Everything
+  between runs untouched.
+
+It is **niche-agnostic**: niches are config files. The default is
+`hidden_things` ("the hidden ___ of everyday things"); `reddit_stories` ships too
+but is *not* recommended (see STRATEGY.md §3).
 
 ## Prerequisites
-- Python 3.7+
-- Google API Key for Gemini API (get from [Google AI Studio](https://makersuite.google.com/app/apikey))
-- FFmpeg installed (`brew install ffmpeg` on macOS)
-- Google Cloud Project with YouTube Data API v3 enabled (for Phase 4)
+
+- Python 3.9+
+- `FFmpeg` (`brew install ffmpeg` / `apt install ffmpeg`) — for assembly
+- A Google **Gemini** API key (optional but recommended) — angles, scripts,
+  grounding, metadata and the similarity embeddings. Without it the pipeline
+  still runs the "spine" using deterministic fallbacks.
+- A Google Cloud project with **YouTube Data API v3** (only for real uploads).
 
 ## Setup
 
-### 1. Get Google API Key
-1. Go to [Google AI Studio](https://makersuite.google.com/app/apikey)
-2. Sign in with your Google account
-3. Click "Create API Key"
-4. Copy your API key
-
-### 2. Install FFmpeg (macOS)
 ```bash
-brew install ffmpeg
+python3 -m venv .venv && source .venv/bin/activate
+pip install -r requirements.txt
+cp .env.example .env        # then edit .env
 ```
 
-### 3. Project Setup
-1. Create and activate virtual environment:
-   ```bash
-   python3 -m venv .venv
-   source .venv/bin/activate
-   ```
+Add background videos as `.mp4` into `assets/backgrounds/` (looped + center-cropped
+to 1080×1920). For uploads, drop OAuth `credentials.json` (Desktop app) in the repo
+root; first real upload opens a browser to authorize.
 
-2. Install dependencies:
-   ```bash
-   pip install -r requirements.txt
-   ```
-
-3. Set up environment variables:
-   - Create a `.env` file in the project root (or copy from `.env.example`)
-   - Add your Google API key:
-     ```bash
-     GOOGLE_API_KEY=your_api_key_here
-     ```
-   - Optionally configure other settings (see Configuration section below)
-
-4. Add background videos:
-   - Place `.mp4` files in `assets/backgrounds/`
-   - Videos will be randomly selected for each render
-   - Any resolution works (will be cropped/scaled to 1080x1920)
-
-5. Set up YouTube API (for Phase 4):
-   - Go to [Google Cloud Console](https://console.cloud.google.com/)
-   - Create a project or select an existing one
-   - Enable YouTube Data API v3
-   - Create OAuth 2.0 credentials (Desktop app type)
-   - Download credentials and save as `credentials.json` in project root
-   - On first run, you'll be prompted to authorize the app in your browser
-
-## Usage
-
-### Full Pipeline
-Run all phases in sequence:
+## Usage — the weekly loop
 
 ```bash
-source .venv/bin/activate
+# 1. Fill the queue: create jobs and auto-run them to the ANGLE gate.
+python cli.py new --count 20
 
-# Phase 1: Generate story
-python scripts/agent.py
+# 2. Gate 1 (batched): review proposed angles, then approve/pick.
+python cli.py angles
+python cli.py approve-angle <job_id> --pick 2     # or --edit "my own angle"
+python cli.py approve-angle --all                 # batch-approve defaults
 
-# Phase 2: Generate voice
-python scripts/tts.py
+# 3. Run automated stages (script → … → metadata), parking at the PUBLISH gate.
+python cli.py run --all
 
-# Phase 3a: Generate captions
-python scripts/captions.py
+# 4. Gate 2 (batched): review finished videos.
+python cli.py publish-queue
 
-# Phase 3b: Render video
-python scripts/render.py
-
-# Phase 4: Upload to YouTube
-python scripts/upload.py
+# 5. Approve + upload (dry-run unless YOUTUBE_DRY_RUN=false).
+python cli.py approve-publish <job_id>
 ```
 
-### Output Files
-All generated files are in `output/` (gitignored):
-- `script.json` - Generated story (title, description, script)
-- `voice.mp3` - Audio narration
-- `captions.srt` - Timed subtitles
-- `final.mp4` - Final 1080x1920 video with captions
+Other commands: `python cli.py status` (overview), `show <id>` (full job record),
+`niches`, `reject <id>`. Run `python cli.py --help`.
+
+### Where things live (per job)
+
+Each job is a directory under `jobs/<job_id>/` (gitignored):
+- `job.json` — the shared state record every stage reads/writes
+- `voice.mp3`, `captions.ass`, `final.mp4` — media artifacts
+
+Because every stage records its output and checks for it, **reruns resume failed
+steps** without restarting: fix the cause, run the same command again.
 
 ## Configuration
 
-### Environment Variables (`.env`)
-```bash
-# Google Gemini API settings (REQUIRED)
-GOOGLE_API_KEY=your_api_key_here  # Get from https://makersuite.google.com/app/apikey
-GEMINI_MODEL=gemini-1.5-flash  # Options: gemini-1.5-flash (fast), gemini-1.5-pro (better quality), gemini-pro
-NICHE=aita  # Options: aita, confession, relationships, creepy
+All content behaviour is config, not code:
 
-# Caption settings
-CAPTION_MODE=phrase_bounce  # Options: word_bounce, phrase_bounce (phrase_bounce recommended for longer scripts)
-CAPTION_MAX_WORDS_PER_CHUNK=6
-CAPTION_MAX_CHARS_PER_LINE=28
-CAPTION_MAX_LINES=2
+| File | Purpose |
+|---|---|
+| `config/niches/<id>.yaml` | A niche: topic source, which lenses/formats/voices it uses, target length, grounding, metadata |
+| `config/lenses.yaml` | The angle lenses (Surprise / Hot take / Hidden connection / What if / Big meaning) |
+| `config/formats.yaml` | The structural format bank |
+| `config/surface.yaml` | Voices, caption styles, intro styles to rotate |
 
-# TTS settings
-TTS_VOICE=en-US-GuyNeural
-TTS_RATE=+5%
-TTS_PITCH=+0Hz
+Key `.env` settings (see `.env.example`): `NICHE`, `GOOGLE_API_KEY`,
+`GEMINI_MODEL`, `SIMILARITY_THRESHOLD`, `YOUTUBE_DRY_RUN`,
+`YOUTUBE_PRIVACY_STATUS`, `SCHEDULE_HOURS`.
 
-# YouTube upload settings (Phase 4)
-YOUTUBE_CATEGORY_ID=22  # People & Blogs (see YouTube category IDs)
-YOUTUBE_PRIVACY=private  # Options: private, unlisted, public
-YOUTUBE_TAGS=shorts,reddit,story,aita
-SCHEDULE_HOURS=0  # Hours to wait before publishing (0 = immediate)
+To add a niche, drop a new `config/niches/<id>.yaml` and run
+`python cli.py new --niche <id>`. No code changes.
+
+## Scheduling
+
+`scripts/run_scheduled.sh` generates a daily batch **to the angle gate only** — it
+never auto-uploads, because that would bypass the human gates the policy requires.
+See `scheduling/` for the macOS `launchd` setup.
+
+## Project structure
+
 ```
-
-### Background Videos
-- Add `.mp4` files to `assets/backgrounds/`
-- Videos are randomly selected for each render
-- Will be looped and cropped/scaled to 1080x1920 (9:16 aspect ratio)
-- Center crop is used to maintain aspect ratio
-
-## Project Structure
-```
-yt-shorts-agent/
-├── scripts/
-│   ├── agent.py      # Phase 1: Story generation
-│   ├── tts.py         # Phase 2: Voice synthesis
-│   ├── captions.py    # Phase 3a: Caption generation
-│   ├── render.py      # Phase 3b: Video rendering
-│   └── upload.py      # Phase 4: YouTube upload
-├── assets/
-│   └── backgrounds/   # Background video files (.mp4)
-├── output/            # Generated files (gitignored)
-│   ├── script.json
-│   ├── voice.mp3
-│   ├── captions.srt
-│   └── final.mp4
-├── credentials.json   # Google OAuth credentials (gitignored)
-├── token.pickle       # OAuth token cache (gitignored)
-└── requirements.txt
+yt-shorts/
+├── cli.py                  # entrypoint: jobs, the two gates, status
+├── config/                 # niches + lenses + formats + surface (all behaviour)
+├── pipeline/
+│   ├── job.py              # job record + state machine
+│   ├── orchestrator.py     # runs stages in order, gates, similarity regen
+│   ├── config.py  llm.py  similarity.py
+│   ├── stages/             # idea, angle, script, similarity_guard, assets,
+│   │                       #   voice, captions, assemble, metadata, upload
+│   ├── media/              # whisper captions + ffmpeg render mechanics
+│   └── youtube/            # OAuth + resumable upload
+├── assets/backgrounds/     # your .mp4 backgrounds (gitignored)
+├── jobs/  catalog/         # per-job state + similarity catalog (gitignored)
+└── STRATEGY.md             # why the architecture is shaped this way — read first
 ```
 
 ## Notes
-- All output files are gitignored; only source code is versioned
-- Ollama runs locally - no API costs, complete privacy
-- Edge TTS is free - no API keys needed
-- FFmpeg is required for video rendering
-- Background videos must be added manually to `assets/backgrounds/`
-- YouTube API requires OAuth2 authentication (one-time browser authorization)
-- Token is cached in `token.pickle` for subsequent uploads
 
-## Troubleshooting
-
-### FFmpeg not found
-```bash
-brew install ffmpeg
-```
-
-### No background videos
-Add `.mp4` files to `assets/backgrounds/` directory
-
-### Gemini API errors
-- Ensure `GOOGLE_API_KEY` is set in your `.env` file
-- Verify your API key is valid at [Google AI Studio](https://makersuite.google.com/app/apikey)
-- Check that you have API quota available
-- Try a different model if one fails (e.g., `gemini-1.5-flash` vs `gemini-1.5-pro`)
-
-### Missing output files
-Run scripts in order: agent.py → tts.py → captions.py → render.py
-
-### YouTube API authentication errors
-- Ensure `credentials.json` is in project root
-- Delete `token.pickle` and re-run to re-authenticate
-- Check that YouTube Data API v3 is enabled in Google Cloud Console
-
-### YouTube upload fails
-- Verify video file exists: `output/final.mp4`
-- Check that script.json exists with title and description
-- Ensure OAuth token is valid (delete token.pickle to refresh)
-- For scheduled uploads, ensure SCHEDULE_HOURS is set correctly
+- Nothing publishes by accident: `YOUTUBE_DRY_RUN=true` by default.
+- No Gemini key? The spine still runs with deterministic fallbacks (offline),
+  the similarity guard falls back to lexical comparison, grounding is skipped.
+- `jobs/`, `catalog/`, `output/`, `.env` and credentials are all gitignored.
