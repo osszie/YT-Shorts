@@ -146,9 +146,12 @@ def build_track(script_text: str, voice_mp3: str) -> tuple[list[dict], float]:
     return chunks, total
 
 
-def generate(script_text: str, voice_mp3: str, out_ass: str, style: dict) -> str:
-    """Write an ASS caption file for `voice_mp3`, styled per `style`."""
-    track, _ = build_track(script_text, voice_mp3)
+def write_ass(track: list[dict], out_ass: str, style: dict) -> str:
+    """Write an ASS caption file from an already-computed caption track.
+
+    Takes the track from `build_track()` so the audio is transcribed only once;
+    both the JSON (Remotion) and ASS (FFmpeg) outputs share the same timing pass.
+    """
     chunks = [(c["text"], c["start"], c["end"]) for c in track]
 
     fontname = style.get("fontname", "Arial")
@@ -174,3 +177,11 @@ def generate(script_text: str, voice_mp3: str, out_ass: str, style: dict) -> str
             tags = f"{pos}{_emphasis(text, start, highlight)}{_bounce()}"
             f.write(f"Dialogue: 0,{_ass_time(start)},{_ass_time(end)},Default,,0,0,0,,{tags}{text}\n")
     return out_ass
+
+
+def generate(script_text: str, voice_mp3: str, out_ass: str, style: dict) -> str:
+    """Convenience: build the timing track and write the ASS file in one call
+    (for standalone use). The pipeline stage builds the track once itself and
+    calls `write_ass()` directly to avoid transcribing twice."""
+    track, _ = build_track(script_text, voice_mp3)
+    return write_ass(track, out_ass, style)
