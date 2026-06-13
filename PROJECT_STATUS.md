@@ -29,8 +29,10 @@ idea → angle engine → [ANGLE GATE] → script (grounded) → similarity guar
 | Similarity-guard stage | `pipeline/stages/similarity_guard.py` | ✅ |
 | Assets (surface variation) | `pipeline/stages/assets.py` | ✅ |
 | Voice (Edge TTS, rotated) | `pipeline/stages/voice.py` | ✅ |
-| Captions (Whisper → ASS, styled) | `pipeline/media/captions.py` | ✅ |
-| Assemble (FFmpeg 9:16) | `pipeline/media/render.py` | ✅ |
+| Captions (Whisper timing → ASS + JSON track) | `pipeline/media/captions.py` | ✅ |
+| Assemble (selectable engine) | `pipeline/stages/assemble.py` | ✅ |
+| ↳ Remotion engine (default, motion-graphics) | `remotion/`, `pipeline/media/remotion.py` | ✅ |
+| ↳ FFmpeg engine (fallback) | `pipeline/media/render.py` | ✅ |
 | Metadata (honest SEO) | `pipeline/stages/metadata.py` | ✅ |
 | Upload (YouTube API, dry-run safe) | `pipeline/stages/upload.py` + `pipeline/youtube/` | ✅ |
 | CLI + two batched gates | `cli.py` | ✅ |

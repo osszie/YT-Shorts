@@ -1,0 +1,22 @@
+{
+  "name": "yt-shorts-remotion",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Remotion render engine for the yt-shorts pipeline (motion-graphics 9:16 shorts).",
+  "scripts": {
+    "studio": "remotion studio src/index.ts",
+    "render": "remotion render src/index.ts Short out/video.mp4",
+    "lint": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@remotion/cli": "4.0.476",
+    "react": "18.3.1",
+    "react-dom": "18.3.1",
+    "remotion": "4.0.476",
+    "zod": "3.23.8"
+  },
+  "devDependencies": {
+    "@types/react": "18.3.3",
+    "typescript": "5.4.5"
+  }
+}

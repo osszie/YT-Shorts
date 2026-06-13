@@ -133,12 +133,26 @@ def _emphasis(text: str, start: float, highlight: str) -> str:
     return "{" + "".join(tags) + "}" if tags else ""
 
 
-def generate(script_text: str, voice_mp3: str, out_ass: str, style: dict) -> str:
-    """Write an ASS caption file for `voice_mp3`, styled per `style`."""
+def build_track(script_text: str, voice_mp3: str) -> tuple[list[dict], float]:
+    """Engine-neutral caption track: phrase chunks + audio duration.
+
+    Returns ([{"text", "start", "end"} ...], total_seconds). Shared by both the
+    FFmpeg (ASS) and Remotion (React) renderers so timing is computed once.
+    """
     total = duration_seconds(voice_mp3)
     timings = _whisper_word_timings(voice_mp3) or _estimated_word_timings(script_text, total)
     timings = _sanitize(timings, total)
-    chunks = _chunk(timings)
+    chunks = [{"text": t, "start": s, "end": e} for t, s, e in _chunk(timings)]
+    return chunks, total
+
+
+def write_ass(track: list[dict], out_ass: str, style: dict) -> str:
+    """Write an ASS caption file from an already-computed caption track.
+
+    Takes the track from `build_track()` so the audio is transcribed only once;
+    both the JSON (Remotion) and ASS (FFmpeg) outputs share the same timing pass.
+    """
+    chunks = [(c["text"], c["start"], c["end"]) for c in track]
 
     fontname = style.get("fontname", "Arial")
     fontsize = int(style.get("fontsize", 72))
@@ -163,3 +177,11 @@ def generate(script_text: str, voice_mp3: str, out_ass: str, style: dict) -> str
             tags = f"{pos}{_emphasis(text, start, highlight)}{_bounce()}"
             f.write(f"Dialogue: 0,{_ass_time(start)},{_ass_time(end)},Default,,0,0,0,,{tags}{text}\n")
     return out_ass
+
+
+def generate(script_text: str, voice_mp3: str, out_ass: str, style: dict) -> str:
+    """Convenience: build the timing track and write the ASS file in one call
+    (for standalone use). The pipeline stage builds the track once itself and
+    calls `write_ass()` directly to avoid transcribing twice."""
+    track, _ = build_track(script_text, voice_mp3)
+    return write_ass(track, out_ass, style)

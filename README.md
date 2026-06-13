@@ -38,7 +38,8 @@ but is *not* recommended (see STRATEGY.md §3).
 ## Prerequisites
 
 - Python 3.9+
-- `FFmpeg` (`brew install ffmpeg` / `apt install ffmpeg`) — for assembly
+- `FFmpeg` (`brew install ffmpeg` / `apt install ffmpeg`) — for TTS probing and the FFmpeg render fallback
+- **Node 18+** (optional) — for the default Remotion render engine; without it the pipeline renders with FFmpeg
 - A Google **Gemini** API key (optional but recommended) — angles, scripts,
   grounding, metadata and the similarity embeddings. Without it the pipeline
   still runs the "spine" using deterministic fallbacks.
@@ -55,6 +56,15 @@ cp .env.example .env        # then edit .env
 Add background videos as `.mp4` into `assets/backgrounds/` (looped + center-cropped
 to 1080×1920). For uploads, drop OAuth `credentials.json` (Desktop app) in the repo
 root; first real upload opens a browser to authorize.
+
+For the default **Remotion** render engine, install its deps once:
+
+```bash
+cd remotion && npm install && cd ..
+```
+
+The first render downloads a headless Chrome shell. If Node/Remotion isn't present,
+the pipeline automatically renders with FFmpeg instead.
 
 ## Usage — the weekly loop
 
@@ -107,6 +117,22 @@ Key `.env` settings (see `.env.example`): `NICHE`, `GOOGLE_API_KEY`,
 To add a niche, drop a new `config/niches/<id>.yaml` and run
 `python cli.py new --niche <id>`. No code changes.
 
+### Render engines
+
+Assembly is isolated behind `AssembleStage`, so the engine is swappable via
+`RENDER_ENGINE`:
+
+- **`remotion`** (default) — programmatic React/motion-graphics (`remotion/`):
+  animated captions, zoom/drift background, progress bar, subject header. Best for
+  the "hidden things" explainer look; this is where animated diagrams/callouts
+  belong as the channel matures. Needs Node + `npm install` in `remotion/`.
+- **`ffmpeg`** — the original filter-graph renderer (`pipeline/media/render.py`).
+  Zero Node dependency; used automatically when Remotion isn't available.
+
+Caption *timing* is computed once (Whisper → `captions.json`) and shared by both
+engines, so they stay in sync. Iterate on the visuals live with
+`cd remotion && npm run studio`.
+
 ## Scheduling
 
 `scripts/run_scheduled.sh` generates a daily batch **to the angle gate only** — it
@@ -125,8 +151,9 @@ yt-shorts/
 │   ├── config.py  llm.py  similarity.py
 │   ├── stages/             # idea, angle, script, similarity_guard, assets,
 │   │                       #   voice, captions, assemble, metadata, upload
-│   ├── media/              # whisper captions + ffmpeg render mechanics
+│   ├── media/              # whisper captions + ffmpeg/remotion render engines
 │   └── youtube/            # OAuth + resumable upload
+├── remotion/               # Remotion project (default render engine)
 ├── assets/backgrounds/     # your .mp4 backgrounds (gitignored)
 ├── jobs/  catalog/         # per-job state + similarity catalog (gitignored)
 └── STRATEGY.md             # why the architecture is shaped this way — read first

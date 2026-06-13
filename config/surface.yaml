@@ -26,7 +26,8 @@ voices:
     rate: "+6%"
     pitch: "+0Hz"
 
-# ASS caption treatments. Colours are ASS BGR (&Hbbggrr&).
+# ASS caption treatments. Colours are ASS BGR (&Hbbggrr&) for the FFmpeg engine;
+# web_* are CSS hex for the Remotion engine. Keep the two in sync per style.
 caption_styles:
   - id: bold_yellow
     fontname: Arial
@@ -34,18 +35,24 @@ caption_styles:
     primary: "&H0000FFFF&"     # yellow
     outline: "&H00000000&"     # black
     highlight: "&H0000A5FF&"   # orange emphasis
+    web_primary: "#FFFF00"
+    web_highlight: "#FFA500"
   - id: clean_white
     fontname: Arial
     fontsize: 70
     primary: "&H00FFFFFF&"     # white
     outline: "&H00000000&"
     highlight: "&H0000D7FF&"   # gold emphasis
+    web_primary: "#FFFFFF"
+    web_highlight: "#FFD700"
   - id: punch_green
     fontname: Arial
     fontsize: 74
     primary: "&H00FFFFFF&"     # white
     outline: "&H00000000&"
     highlight: "&H0000FF00&"   # green emphasis
+    web_primary: "#FFFFFF"
+    web_highlight: "#00FF00"
 
 # Intro treatments. sfx=true adds the subtle pop+whoosh on the hook.
 intro_styles:

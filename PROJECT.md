@@ -32,7 +32,8 @@ idea → angle engine → [ANGLE GATE] → script (grounded) → similarity guar
   grounding for factual niches; embeddings for the similarity guard.
 - **TTS:** Edge TTS, voice rotated per video.
 - **Captions:** Whisper word timing → styled ASS.
-- **Assembly:** FFmpeg (9:16, branded, fast pacing).
+- **Assembly:** Remotion (programmatic motion-graphics, default) with an FFmpeg
+  fallback — selectable via `RENDER_ENGINE`, isolated behind `AssembleStage`.
 - **Upload:** YouTube Data API v3 (resumable, scheduled, dry-run safe).
 - **Config:** YAML (niches, lenses, formats, surface).
 
