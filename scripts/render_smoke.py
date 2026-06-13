@@ -21,8 +21,12 @@ sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[1]))
 
 # Force the hermetic path BEFORE importing pipeline modules (assemble reads
 # RENDER_ENGINE at import time; llm reads GOOGLE_API_KEY at import time).
+# Set the key to empty rather than popping it: pipeline.llm calls load_dotenv()
+# on import, which would otherwise repopulate it from a local .env and let the
+# "hermetic" smoke make real Gemini/network calls. load_dotenv does not override
+# an already-set variable, so an empty value keeps the LLM disabled.
 os.environ["RENDER_ENGINE"] = "ffmpeg"
-os.environ.pop("GOOGLE_API_KEY", None)
+os.environ["GOOGLE_API_KEY"] = ""
 
 from pipeline import ROOT                                    # noqa: E402
 from pipeline.config import load_config                     # noqa: E402
