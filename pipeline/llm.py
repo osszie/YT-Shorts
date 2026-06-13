@@ -22,6 +22,11 @@ load_dotenv(dotenv_path=str(ROOT / ".env"))
 GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY")
 MODEL_NAME = os.getenv("GEMINI_MODEL", "gemini-2.0-flash")
 EMBED_MODEL = os.getenv("GEMINI_EMBED_MODEL", "models/text-embedding-004")
+# Default to the REST transport: the gRPC client uses its own root store and
+# fails behind TLS-intercepting proxies (managed/corporate networks) with
+# CERTIFICATE_VERIFY_FAILED, whereas REST goes through the system-trusted HTTPS
+# stack. Override with GEMINI_TRANSPORT=grpc if you prefer it.
+TRANSPORT = os.getenv("GEMINI_TRANSPORT", "rest")
 
 
 class LLMUnavailable(RuntimeError):
@@ -41,7 +46,7 @@ def _ensure_configured():
         raise LLMUnavailable("GOOGLE_API_KEY is not set; running in offline/fallback mode.")
     if not _configured:
         import google.generativeai as genai
-        genai.configure(api_key=GOOGLE_API_KEY)
+        genai.configure(api_key=GOOGLE_API_KEY, transport=TRANSPORT)
         _configured = True
 
 
