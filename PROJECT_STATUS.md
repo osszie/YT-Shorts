@@ -34,17 +34,32 @@ idea → angle engine → [ANGLE GATE] → script (grounded) → similarity guar
 | ↳ Remotion engine (default, motion-graphics) | `remotion/`, `pipeline/media/remotion.py` | ✅ |
 | ↳ FFmpeg engine (fallback) | `pipeline/media/render.py` | ✅ |
 | Metadata (honest SEO) | `pipeline/stages/metadata.py` | ✅ |
-| Upload (YouTube API, dry-run safe) | `pipeline/stages/upload.py` + `pipeline/youtube/` | ✅ |
+| Thumbnail (branded 1280x720, FFmpeg) | `pipeline/stages/thumbnail.py` + `pipeline/media/thumbnail.py` | ✅ |
+| Upload (YouTube API, dry-run safe, sets thumbnail) | `pipeline/stages/upload.py` + `pipeline/youtube/` | ✅ |
 | CLI + two batched gates | `cli.py` | ✅ |
+| Environment preflight (`doctor`) | `pipeline/doctor.py` | ✅ |
 | Niche configs | `config/niches/*.yaml` | ✅ `hidden_things` (default), `reddit_stories` |
 | Lenses / formats / surface banks | `config/*.yaml` | ✅ |
 | Scheduled batch (to angle gate only) | `scripts/run_scheduled.sh` | ✅ |
+| Cross-job subject memory (variety) | `pipeline/job.recent_subjects` → `stages/idea.py` | ✅ |
+| Offline test suite (44 tests) | `tests/` | ✅ |
+| CI (compile + pytest) | `.github/workflows/ci.yml` | ✅ |
 
 ## Originality controls (per STRATEGY.md §2)
 - **Inject at generation:** angle≠script split, rotating lenses, format bank,
-  source grounding, surface variation (voice/captions/intro).
+  source grounding, surface variation (voice/captions/intro), and **cross-job
+  subject memory** so the channel never repeats a subject video-to-video.
 - **Enforce at a gate:** cosine similarity guard with auto-regen; two batched human
   gates (angle, publish).
+
+## Tests & CI
+`tests/` is a fully offline pytest suite (44 tests; no API key / ffmpeg / network)
+covering config resolution, the job state machine + subject memory, the similarity
+guard, every logic stage, the thumbnail filter builder, the full orchestrator/gate
+flow (media stages stubbed), the CLI commands + both gates, and the `doctor`
+preflight. CI (`.github/workflows/ci.yml`) installs only the light deps the
+lazily-imported code needs, byte-compiles for import-safety, and runs pytest on
+every push and PR.
 
 ## Idempotency & resilience
 Every stage records its output and a `done()` check, so reruns skip completed work
@@ -66,4 +81,4 @@ remains available as `config/niches/reddit_stories.yaml`, but is **not** the def
 because STRATEGY.md flags it as the most demonetization-prone.
 
 ## Not yet implemented (deferred by design)
-Dashboard, trend detection, A/B testing, thumbnails, multi-language, analytics.
+Dashboard, trend detection, A/B testing, multi-language, analytics.

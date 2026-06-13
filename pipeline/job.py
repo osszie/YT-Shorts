@@ -118,3 +118,26 @@ def all_jobs() -> list[Job]:
             except Exception:
                 continue
     return jobs
+
+
+def recent_subjects(limit: int = 50, exclude_job_id: str | None = None) -> list[str]:
+    """Subjects already used by prior jobs, most recent first (deduped).
+
+    Feeds the idea stage so the channel does not repeat subjects across videos —
+    the cross-job half of the per-video variety requirement (STRATEGY.md §1,
+    enforcement is channel-level). Rejected jobs still count: a subject we already
+    explored and dropped is one we don't want to immediately resurface.
+    """
+    subjects: list[str] = []
+    seen: set[str] = set()
+    for job in sorted(all_jobs(), key=lambda j: j.created_at, reverse=True):
+        if job.id == exclude_job_id:
+            continue
+        subj = (job.data.get("subject") or "").strip()
+        key = subj.lower()
+        if subj and key not in seen:
+            seen.add(key)
+            subjects.append(subj)
+        if len(subjects) >= limit:
+            break
+    return subjects

@@ -10,7 +10,7 @@ import random
 
 from .. import llm
 from ..config import Config
-from ..job import Job
+from ..job import Job, recent_subjects
 from .base import Stage
 
 
@@ -26,9 +26,13 @@ class IdeaStage(Stage):
         domains = idea_cfg.get("lens_domains", ["engineering"])
         domain = random.choice(domains)
 
+        # Cross-job memory: what the channel has already covered, so we don't
+        # repeat subjects video-to-video.
+        recent = recent_subjects(exclude_job_id=job.id)
+        recent_lower = {s.lower() for s in recent}
+
         subject = None
         if llm.available():
-            recent = job.data.get("_recent_subjects", [])
             prompt = (
                 f"You are sourcing one idea for the YouTube niche: {cfg.niche['name']}.\n"
                 f"{cfg.niche.get('description', '')}\n\n"
@@ -36,7 +40,8 @@ class IdeaStage(Stage):
                 f"genuinely surprise a smart viewer. Be physical and precise (an object or "
                 f"detail), never generic 'random facts'. Examples of the right altitude: "
                 f"{', '.join(seeds[:6])}.\n"
-                f"Avoid anything close to: {', '.join(recent) if recent else '(none yet)'}.\n"
+                f"Avoid anything close to these already-covered subjects: "
+                f"{', '.join(recent[:30]) if recent else '(none yet)'}.\n"
                 'Return JSON: {"subject": "..."}'
             )
             try:
@@ -44,9 +49,13 @@ class IdeaStage(Stage):
             except Exception as e:
                 job.log(self.name, f"llm idea failed ({e}); using seed")
 
+        # Offline / fallback: prefer a seed the channel hasn't used yet.
         if not subject:
-            subject = random.choice(seeds) if seeds else "an everyday object"
+            unused = [s for s in seeds if s.lower() not in recent_lower]
+            pool = unused or seeds
+            subject = random.choice(pool) if pool else "an everyday object"
 
         job.data["subject"] = subject
         job.data["lens_domain"] = domain
-        job.mark_stage(self.name, f"subject='{subject}' domain={domain}")
+        job.data["recent_subjects_seen"] = len(recent)
+        job.mark_stage(self.name, f"subject='{subject}' domain={domain} (avoided {len(recent)} prior)")

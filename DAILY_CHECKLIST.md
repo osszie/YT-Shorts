@@ -3,6 +3,9 @@
 The pipeline automates generation and asks you to steer at **two batched gates**.
 A typical weekly session:
 
+## 0. Preflight (first time / after env changes)
+- [ ] `python cli.py doctor` — fix anything marked ✗ before generating a batch
+
 ## 1. Generate a batch (auto → angle gate)
 - [ ] `source .venv/bin/activate`
 - [ ] `python cli.py new --count 20`
