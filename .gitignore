@@ -29,3 +29,6 @@ __pycache__/
 # Per-job records, media artifacts and the similarity catalog (local state)
 jobs/
 catalog/
+
+# Test cache
+.pytest_cache/

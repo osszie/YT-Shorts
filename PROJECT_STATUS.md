@@ -39,12 +39,23 @@ idea → angle engine → [ANGLE GATE] → script (grounded) → similarity guar
 | Niche configs | `config/niches/*.yaml` | ✅ `hidden_things` (default), `reddit_stories` |
 | Lenses / formats / surface banks | `config/*.yaml` | ✅ |
 | Scheduled batch (to angle gate only) | `scripts/run_scheduled.sh` | ✅ |
+| Cross-job subject memory (variety) | `pipeline/job.recent_subjects` → `stages/idea.py` | ✅ |
+| Offline test suite (26 tests) | `tests/` | ✅ |
+| CI (compile + pytest) | `.github/workflows/ci.yml` | ✅ |
 
 ## Originality controls (per STRATEGY.md §2)
 - **Inject at generation:** angle≠script split, rotating lenses, format bank,
-  source grounding, surface variation (voice/captions/intro).
+  source grounding, surface variation (voice/captions/intro), and **cross-job
+  subject memory** so the channel never repeats a subject video-to-video.
 - **Enforce at a gate:** cosine similarity guard with auto-regen; two batched human
   gates (angle, publish).
+
+## Tests & CI
+`tests/` is a fully offline pytest suite (no API key / ffmpeg / network) covering
+config resolution, the job state machine + subject memory, the similarity guard,
+every logic stage, and the full orchestrator/gate flow (media stages stubbed). CI
+(`.github/workflows/ci.yml`) installs only the light deps the lazily-imported code
+needs, byte-compiles for import-safety, and runs pytest on every push and PR.
 
 ## Idempotency & resilience
 Every stage records its output and a `done()` check, so reruns skip completed work
@@ -66,4 +77,5 @@ remains available as `config/niches/reddit_stories.yaml`, but is **not** the def
 because STRATEGY.md flags it as the most demonetization-prone.
 
 ## Not yet implemented (deferred by design)
-Dashboard, trend detection, A/B testing, thumbnails, multi-language, analytics.
+Thumbnail stage (in the STRATEGY.md pipeline diagram), dashboard, trend detection,
+A/B testing, multi-language, analytics.

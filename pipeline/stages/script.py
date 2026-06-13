@@ -59,7 +59,7 @@ class ScriptStage(Stage):
                 job.log(self.name, f"llm script failed ({e}); using fallback")
 
         if not script.strip():
-            script = self._fallback(subject, angle, fmt)
+            script = self._fallback(subject, angle, fmt, job.data.get("regen_count", 0))
 
         script = script.strip()
         job.data["script"] = script
@@ -68,12 +68,29 @@ class ScriptStage(Stage):
         job.mark_stage(self.name, f"{_word_count(script)} words, {len(sources)} sources"
                        + (" (grounded)" if grounding else ""))
 
-    @staticmethod
-    def _fallback(subject: str, angle: str, fmt: dict) -> str:
-        return (
-            f"You've seen {subject} a hundred times and never thought twice about it. "
-            f"But here's the thing: {angle} "
-            f"Most people assume there's nothing to it — there is. "
-            f"Once you know what to look for, you can't unsee it. "
-            f"What everyday thing do you want explained next?"
-        )
+    # A few distinct skeletons so the offline fallback varies across regen
+    # attempts — without this, the similarity guard would reject identical
+    # regenerations until it hit the cap. With an LLM the nudge does this job.
+    _FALLBACKS = [
+        ("You've seen {subject} a hundred times and never thought twice about it. "
+         "But here's the thing: {angle} Most people assume there's nothing to it — there is. "
+         "Once you know what to look for, you can't unsee it. "
+         "What everyday thing do you want explained next?"),
+        ("Quick question: have you ever actually looked at {subject}? "
+         "Because {angle} It sounds like a small detail, but it changes how you see the thing entirely. "
+         "Next time it's in front of you, you'll remember this. "
+         "What else have you been walking past without noticing?"),
+        ("Here's something nobody tells you about {subject}. "
+         "{angle} That's not a coincidence, and it's not decoration — it's there for a reason. "
+         "Tiny detail, surprisingly deliberate. "
+         "Drop another everyday object and I'll break it down."),
+        ("Most people get {subject} completely wrong. "
+         "The truth: {angle} Once you understand why, the whole object suddenly makes sense. "
+         "It's hiding in plain sight. "
+         "What's something you've always wondered about but never looked up?"),
+    ]
+
+    @classmethod
+    def _fallback(cls, subject: str, angle: str, fmt: dict, attempt: int = 0) -> str:
+        template = cls._FALLBACKS[attempt % len(cls._FALLBACKS)]
+        return template.format(subject=subject, angle=angle)
