@@ -6,6 +6,7 @@ from pipeline import orchestrator
 from pipeline.stages.voice import VoiceStage
 from pipeline.stages.captions import CaptionsStage
 from pipeline.stages.assemble import AssembleStage
+from pipeline.stages.thumbnail import ThumbnailStage
 from pipeline.stages.upload import UploadStage
 
 
@@ -23,7 +24,8 @@ def stub_media(monkeypatch):
         return run, done
 
     for cls, name in [(VoiceStage, "voice"), (CaptionsStage, "captions"),
-                      (AssembleStage, "assemble"), (UploadStage, "upload")]:
+                      (AssembleStage, "assemble"), (ThumbnailStage, "thumbnail"),
+                      (UploadStage, "upload")]:
         run, done = make(name)
         monkeypatch.setattr(cls, "run", run)
         monkeypatch.setattr(cls, "done", done)
@@ -46,6 +48,7 @@ def test_full_flow_through_both_gates(cfg, stub_media):
     assert status == STATUS_AWAITING_PUBLISH
     assert job.data.get("metadata")
     assert job.data.get("voice_done") and job.data.get("assemble_done")
+    assert job.data.get("thumbnail_done")  # thumbnail built before the publish gate
     assert "upload_done" not in job.data   # upload waits behind the publish gate
 
     job.approve_gate("publish"); job.save()

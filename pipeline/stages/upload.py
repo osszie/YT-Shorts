@@ -54,11 +54,26 @@ class UploadStage(Stage):
 
         client = None if dry_run else get_youtube_client(ROOT)
         resp = upload_video(job.artifact("final.mp4"), body, client, dry_run=dry_run)
+        video_id = resp.get("id") if resp else None
 
         job.data["upload"] = {
-            "video_id": resp.get("id") if resp else None,
+            "video_id": video_id,
             "dry_run": dry_run,
             "privacy": body["status"]["privacyStatus"],
             "scheduled_for": body["status"].get("publishAt"),
         }
-        job.mark_stage(self.name, f"{'dry-run' if dry_run else 'uploaded'} id={job.data['upload']['video_id']}")
+
+        # Set the branded custom thumbnail (best-effort: requires a verified channel).
+        thumb = job.artifact("thumbnail.jpg")
+        if not dry_run and video_id and thumb.exists():
+            try:
+                from googleapiclient.http import MediaFileUpload
+                client.thumbnails().set(
+                    videoId=video_id, media_body=MediaFileUpload(str(thumb)),
+                ).execute()
+                job.data["upload"]["thumbnail_set"] = True
+            except Exception as e:  # noqa: BLE001
+                job.log(self.name, f"thumbnail set failed ({e}); custom thumbnails need a verified channel")
+                job.data["upload"]["thumbnail_set"] = False
+
+        job.mark_stage(self.name, f"{'dry-run' if dry_run else 'uploaded'} id={video_id}")

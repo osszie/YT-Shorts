@@ -24,7 +24,8 @@ job record, so reruns resume failed steps for free.
 
 ```
 idea → angle engine → [ANGLE GATE] → script (grounded) → similarity guard
-     → assets → voice → captions → assemble → metadata → [PUBLISH GATE] → upload
+     → assets → voice → captions → assemble → metadata → thumbnail
+     → [PUBLISH GATE] → upload
 ```
 
 ## Tech stack

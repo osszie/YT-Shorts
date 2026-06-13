@@ -34,7 +34,8 @@ idea → angle engine → [ANGLE GATE] → script (grounded) → similarity guar
 | ↳ Remotion engine (default, motion-graphics) | `remotion/`, `pipeline/media/remotion.py` | ✅ |
 | ↳ FFmpeg engine (fallback) | `pipeline/media/render.py` | ✅ |
 | Metadata (honest SEO) | `pipeline/stages/metadata.py` | ✅ |
-| Upload (YouTube API, dry-run safe) | `pipeline/stages/upload.py` + `pipeline/youtube/` | ✅ |
+| Thumbnail (branded 1280x720, FFmpeg) | `pipeline/stages/thumbnail.py` + `pipeline/media/thumbnail.py` | ✅ |
+| Upload (YouTube API, dry-run safe, sets thumbnail) | `pipeline/stages/upload.py` + `pipeline/youtube/` | ✅ |
 | CLI + two batched gates | `cli.py` | ✅ |
 | Niche configs | `config/niches/*.yaml` | ✅ `hidden_things` (default), `reddit_stories` |
 | Lenses / formats / surface banks | `config/*.yaml` | ✅ |
@@ -77,5 +78,4 @@ remains available as `config/niches/reddit_stories.yaml`, but is **not** the def
 because STRATEGY.md flags it as the most demonetization-prone.
 
 ## Not yet implemented (deferred by design)
-Thumbnail stage (in the STRATEGY.md pipeline diagram), dashboard, trend detection,
-A/B testing, multi-language, analytics.
+Dashboard, trend detection, A/B testing, multi-language, analytics.

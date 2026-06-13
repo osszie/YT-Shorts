@@ -5,7 +5,7 @@ Implements the flow from STRATEGY.md §4. Stages run in order; each is idempoten
 Two human gates park the job:
 
   idea -> angle -> [ANGLE GATE] -> script -> similarity_guard
-       -> assets -> voice -> captions -> assemble -> metadata
+       -> assets -> voice -> captions -> assemble -> metadata -> thumbnail
        -> [PUBLISH GATE] -> upload
 
 The similarity guard can bounce the script back for regeneration (up to
@@ -26,6 +26,7 @@ from .stages.voice import VoiceStage
 from .stages.captions import CaptionsStage
 from .stages.assemble import AssembleStage
 from .stages.metadata import MetadataStage
+from .stages.thumbnail import ThumbnailStage
 from .stages.upload import UploadStage
 
 MAX_REGEN = 3
@@ -41,6 +42,7 @@ PLAN = [
     (None, CaptionsStage()),
     (None, AssembleStage()),
     (None, MetadataStage()),
+    (None, ThumbnailStage()),
     ("publish", UploadStage()),
 ]
 

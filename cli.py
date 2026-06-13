@@ -112,10 +112,12 @@ def cmd_publish_queue(args) -> int:
         meta = job.data.get("metadata", {})
         sim = job.data.get("similarity", {})
         print(f"● {job.id}  [{job.niche}]")
+        thumb = job.data.get("thumbnail", {})
         print(f"  title:   {meta.get('title')}")
         print(f"  subject: {job.data.get('subject')}")
         print(f"  sim:     cos={sim.get('score')} (threshold {sim.get('threshold')})")
         print(f"  video:   {job.artifact('final.mp4')}")
+        print(f"  thumb:   {job.artifact('thumbnail.jpg')}  headline='{thumb.get('headline','')}'")
         print()
     print("Approve with:  python cli.py approve-publish <id>   (uploads; dry-run unless YOUTUBE_DRY_RUN=false)")
     return 0

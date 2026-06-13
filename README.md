@@ -17,7 +17,7 @@ human at exactly **two batched gates**:
 ```
 idea → angle engine → [ANGLE GATE] → script (grounded) → similarity guard
      → assets (rotated voice/captions/intro) → voice → captions → assemble
-     → metadata → [PUBLISH GATE] → upload
+     → metadata → thumbnail → [PUBLISH GATE] → upload
 ```
 
 The originality layer:
@@ -94,7 +94,7 @@ Other commands: `python cli.py status` (overview), `show <id>` (full job record)
 
 Each job is a directory under `jobs/<job_id>/` (gitignored):
 - `job.json` — the shared state record every stage reads/writes
-- `voice.mp3`, `captions.ass`, `final.mp4` — media artifacts
+- `voice.mp3`, `captions.ass`/`captions.json`, `final.mp4`, `thumbnail.jpg` — media artifacts
 
 Because every stage records its output and checks for it, **reruns resume failed
 steps** without restarting: fix the cause, run the same command again.
