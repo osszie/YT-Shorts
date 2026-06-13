@@ -69,6 +69,9 @@ the pipeline automatically renders with FFmpeg instead.
 ## Usage — the weekly loop
 
 ```bash
+# 0. Preflight: what's ready vs. missing (FFmpeg, Remotion, key, backgrounds…).
+python cli.py doctor
+
 # 1. Fill the queue: create jobs and auto-run them to the ANGLE gate.
 python cli.py new --count 20
 

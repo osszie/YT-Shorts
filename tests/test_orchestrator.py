@@ -1,34 +1,6 @@
-import pytest
-
 from pipeline.job import (Job, STATUS_AWAITING_ANGLE, STATUS_AWAITING_PUBLISH,
                           STATUS_DONE)
 from pipeline import orchestrator
-from pipeline.stages.voice import VoiceStage
-from pipeline.stages.captions import CaptionsStage
-from pipeline.stages.assemble import AssembleStage
-from pipeline.stages.thumbnail import ThumbnailStage
-from pipeline.stages.upload import UploadStage
-
-
-@pytest.fixture
-def stub_media(monkeypatch):
-    """Replace the media stages (which need ffmpeg/edge-tts/whisper/Node) with
-    bookkeeping no-ops, so the orchestration logic can be tested end-to-end."""
-    def make(name):
-        def run(self, job, cfg):
-            job.data[f"{name}_done"] = True
-            job.mark_stage(name)
-
-        def done(self, job):
-            return job.data.get(f"{name}_done", False)
-        return run, done
-
-    for cls, name in [(VoiceStage, "voice"), (CaptionsStage, "captions"),
-                      (AssembleStage, "assemble"), (ThumbnailStage, "thumbnail"),
-                      (UploadStage, "upload")]:
-        run, done = make(name)
-        monkeypatch.setattr(cls, "run", run)
-        monkeypatch.setattr(cls, "done", done)
 
 
 def test_parks_at_angle_gate_before_script(cfg, stub_media):

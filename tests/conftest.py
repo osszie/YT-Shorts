@@ -25,3 +25,30 @@ def isolate(tmp_path, monkeypatch):
 def cfg():
     from pipeline.config import load_config
     return load_config("hidden_things")
+
+
+@pytest.fixture
+def stub_media(monkeypatch):
+    """Replace the media stages (which need ffmpeg/edge-tts/whisper/Node) with
+    bookkeeping no-ops, so orchestration + CLI logic can be tested end-to-end."""
+    from pipeline.stages.voice import VoiceStage
+    from pipeline.stages.captions import CaptionsStage
+    from pipeline.stages.assemble import AssembleStage
+    from pipeline.stages.thumbnail import ThumbnailStage
+    from pipeline.stages.upload import UploadStage
+
+    def make(name):
+        def run(self, job, cfg):
+            job.data[f"{name}_done"] = True
+            job.mark_stage(name)
+
+        def done(self, job):
+            return job.data.get(f"{name}_done", False)
+        return run, done
+
+    for cls, name in [(VoiceStage, "voice"), (CaptionsStage, "captions"),
+                      (AssembleStage, "assemble"), (ThumbnailStage, "thumbnail"),
+                      (UploadStage, "upload")]:
+        run, done = make(name)
+        monkeypatch.setattr(cls, "run", run)
+        monkeypatch.setattr(cls, "done", done)

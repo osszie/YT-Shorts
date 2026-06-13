@@ -173,6 +173,25 @@ def cmd_show(args) -> int:
     return 0
 
 
+def cmd_doctor(args) -> int:
+    from pipeline import doctor
+    groups = doctor.run_checks()
+    icon = {doctor.OK: "✓", doctor.WARN: "!", doctor.FAIL: "✗"}
+    for group, checks in groups.items():
+        print(f"\n{group}:")
+        for name, status, detail in checks:
+            print(f"  {icon[status]} {name}: {detail}")
+    s = doctor.summarize(groups)
+    print("\n" + "=" * 60)
+    if s["ready"]:
+        print("✓ Spine ready — you can generate + assemble videos (dry-run upload).")
+    else:
+        print(f"✗ Blocked (must fix): {', '.join(s['fails'])}")
+    if s["warns"]:
+        print(f"! Optional / limited: {', '.join(s['warns'])}")
+    return 0 if s["ready"] else 1
+
+
 def cmd_niches(args) -> int:
     print("Available niches (default: %s):" % DEFAULT_NICHE)
     for n in list_niches():
@@ -236,6 +255,7 @@ def build_parser() -> argparse.ArgumentParser:
 
     sub.add_parser("status", help="overview of all jobs").set_defaults(func=cmd_status)
     sub.add_parser("niches", help="list available niches").set_defaults(func=cmd_niches)
+    sub.add_parser("doctor", help="check environment readiness").set_defaults(func=cmd_doctor)
     return p
 
 
