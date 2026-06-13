@@ -1,0 +1,39 @@
+name: render-smoke
+
+# Exercises a REAL FFmpeg render end-to-end (the unit suite stubs media). Stays
+# hermetic: installs only FFmpeg + the two light Python deps, synthesizes its own
+# background + voice, and renders with the FFmpeg engine. The produced Short is
+# uploaded as an artifact so a human can actually watch what CI rendered.
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+
+jobs:
+  render:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install FFmpeg + a font (so the thumbnail headline renders)
+        run: sudo apt-get update && sudo apt-get install -y ffmpeg fonts-dejavu-core
+
+      - name: Install light Python deps
+        run: pip install PyYAML python-dotenv
+
+      - name: Real render smoke
+        run: python scripts/render_smoke.py
+
+      - name: Upload the rendered Short + thumbnail
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: render-smoke-output
+          path: |
+            jobs/**/final.mp4
+            jobs/**/thumbnail.jpg
+          if-no-files-found: warn
