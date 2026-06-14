@@ -114,3 +114,18 @@ Dashboard, trend detection, A/B testing, multi-language → genuinely future.
 
 The easier a format is to fully automate, the riskier it is to monetize. Build for
 **automated generation + a thin human steering layer**, not human-absent.
+
+## 7. Control surface — the launcher app (planned)
+
+The "thin human steering layer" deserves a real front door: a desktop application
+(working name **Facet**) with a translucent **liquid-glass** UI that lets you pick
+the video type, tune settings, and drive the two gates "like opening an app" —
+no terminal. It is a *view + controller over this pipeline*, never a replacement:
+the originality controls, similarity guard, gates and dry-run-by-default all stay
+in the pipeline, so the GUI can't bypass the 2025-policy protections. The dial
+(§2) becomes a literal control; the **angle gate** and **publish gate** become the
+app's two main review screens.
+
+Full design + technical plan: [`docs/LAUNCHER_DESIGN.md`](docs/LAUNCHER_DESIGN.md).
+Status: **design only — no app code yet.**
+

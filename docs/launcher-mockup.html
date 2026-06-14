@@ -1,0 +1,224 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Facet — launcher mockup</title>
+<!--
+  NON-FUNCTIONAL VISUAL MOCKUP of the "Facet" launcher described in
+  docs/LAUNCHER_DESIGN.md. No app logic — this is just the liquid-glass look so
+  you can react to the design. Open it in any browser. Self-contained (no network).
+-->
+<style>
+  :root{
+    --accent:#7C8CFF;
+    --accent2:#5BD6C7;
+    --glass: rgba(255,255,255,0.10);
+    --glass-strong: rgba(255,255,255,0.16);
+    --stroke: rgba(255,255,255,0.22);
+    --text:#F4F6FF;
+    --muted: rgba(244,246,255,0.62);
+    --radius:26px;
+    --blur: 26px;
+    font-family:-apple-system,"SF Pro Display","SF Pro Text",Inter,"Segoe UI",system-ui,sans-serif;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html,body{height:100%}
+  body{
+    min-height:100vh; display:grid; place-items:center; color:var(--text);
+    background:#0b0a1f; overflow:hidden;
+  }
+  /* ---- moving gradient-mesh backdrop ---- */
+  .bg{position:fixed; inset:-20%; z-index:0; filter:blur(60px) saturate(1.2); opacity:.95}
+  .blob{position:absolute; border-radius:50%; mix-blend-mode:screen; animation:drift 18s ease-in-out infinite alternate}
+  .b1{width:46vw;height:46vw;left:-6vw;top:-8vw;background:#6a4bff;animation-delay:-2s}
+  .b2{width:42vw;height:42vw;right:-8vw;top:-6vw;background:#1fb6ff;animation-delay:-6s}
+  .b3{width:40vw;height:40vw;left:18vw;bottom:-16vw;background:#ff5ca8;animation-delay:-10s}
+  .b4{width:34vw;height:34vw;right:6vw;bottom:-14vw;background:#34e3c4;animation-delay:-4s}
+  @keyframes drift{from{transform:translate(0,0) scale(1)}to{transform:translate(4vw,3vw) scale(1.12)}}
+
+  /* ---- app window ---- */
+  .app{
+    position:relative; z-index:1; width:min(1180px,94vw); height:min(760px,92vh);
+    display:grid; grid-template-columns:248px 1fr; gap:18px; padding:18px;
+    background:rgba(255,255,255,0.06);
+    border:1px solid var(--stroke); border-radius:34px;
+    box-shadow:0 40px 120px rgba(0,0,0,.55), inset 0 1px 0 rgba(255,255,255,.25);
+    backdrop-filter:blur(40px) saturate(1.3); -webkit-backdrop-filter:blur(40px) saturate(1.3);
+  }
+  .glass{
+    background:var(--glass); border:1px solid var(--stroke); border-radius:var(--radius);
+    backdrop-filter:blur(var(--blur)) saturate(1.25); -webkit-backdrop-filter:blur(var(--blur)) saturate(1.25);
+    box-shadow:0 18px 50px rgba(0,0,0,.35), inset 0 1px 0 rgba(255,255,255,.30);
+  }
+
+  /* ---- sidebar ---- */
+  .rail{display:flex; flex-direction:column; padding:18px 14px; gap:6px}
+  .brand{display:flex; align-items:center; gap:11px; padding:8px 10px 18px}
+  .logo{width:34px;height:34px;border-radius:11px;display:grid;place-items:center;font-size:18px;
+    background:linear-gradient(140deg,var(--accent),var(--accent2));
+    box-shadow:0 6px 18px rgba(124,140,255,.5), inset 0 1px 0 rgba(255,255,255,.6)}
+  .brand b{font-size:18px;letter-spacing:.3px}
+  .brand span{display:block;font-size:11px;color:var(--muted);font-weight:500;margin-top:1px}
+  .nav{display:flex;align-items:center;gap:12px;padding:11px 13px;border-radius:14px;color:var(--muted);
+    font-size:14.5px;font-weight:560;cursor:default;transition:.2s}
+  .nav .i{width:20px;text-align:center;font-size:16px}
+  .nav:hover{color:var(--text);background:rgba(255,255,255,.06)}
+  .nav.active{color:#fff;background:rgba(255,255,255,.14);border:1px solid var(--stroke);
+    box-shadow:inset 0 1px 0 rgba(255,255,255,.35)}
+  .nav .badge{margin-left:auto;font-size:11px;font-weight:700;background:var(--accent);color:#0b0a1f;
+    padding:2px 8px;border-radius:999px}
+  .rail .spacer{flex:1}
+  .health{font-size:12px;color:var(--muted);padding:10px 12px;display:flex;align-items:center;gap:8px}
+  .dot{width:8px;height:8px;border-radius:50%;background:#48e6a0;box-shadow:0 0 10px #48e6a0}
+
+  /* ---- main ---- */
+  .main{padding:26px 28px;overflow:auto}
+  .main::-webkit-scrollbar{width:0}
+  .h1{font-size:26px;font-weight:730;letter-spacing:.2px}
+  .sub{color:var(--muted);font-size:13.5px;margin-top:4px}
+  .section{font-size:12px;font-weight:700;letter-spacing:1.4px;text-transform:uppercase;color:var(--muted);margin:26px 2px 12px}
+
+  /* niche cards */
+  .cards{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+  .card{padding:18px;border-radius:20px;cursor:default;position:relative;overflow:hidden}
+  .card h3{font-size:16.5px;font-weight:680}
+  .card p{color:var(--muted);font-size:12.5px;margin-top:6px;line-height:1.5}
+  .card .emoji{font-size:24px}
+  .card.sel{outline:2px solid var(--accent);box-shadow:0 0 0 4px rgba(124,140,255,.18),0 18px 50px rgba(0,0,0,.35),inset 0 1px 0 rgba(255,255,255,.3)}
+  .card.sel::after{content:"✓ selected";position:absolute;top:14px;right:14px;font-size:11px;font-weight:700;color:var(--accent)}
+  .tag{display:inline-block;margin-top:12px;font-size:11px;color:var(--muted);background:rgba(255,255,255,.08);
+    border:1px solid var(--stroke);padding:3px 9px;border-radius:999px}
+
+  /* settings */
+  .panel{padding:20px;border-radius:22px;margin-top:2px}
+  .row{display:flex;align-items:center;gap:16px;padding:13px 2px;border-bottom:1px solid rgba(255,255,255,.08)}
+  .row:last-child{border-bottom:0}
+  .row .lab{width:150px;font-size:13.5px;font-weight:560}
+  .row .lab small{display:block;color:var(--muted);font-weight:480;font-size:11.5px;margin-top:2px}
+  .row .ctl{flex:1;display:flex;align-items:center;gap:10px;justify-content:flex-end;flex-wrap:wrap}
+  .seg{display:flex;background:rgba(0,0,0,.18);border:1px solid var(--stroke);border-radius:12px;padding:3px}
+  .seg span{font-size:12.5px;font-weight:600;color:var(--muted);padding:7px 13px;border-radius:9px}
+  .seg span.on{color:#0b0a1f;background:linear-gradient(140deg,#fff,#dfe4ff);box-shadow:0 2px 8px rgba(0,0,0,.25)}
+  .slider{flex:1;max-width:230px;height:8px;border-radius:999px;background:rgba(0,0,0,.25);position:relative;border:1px solid var(--stroke)}
+  .slider .fill{position:absolute;inset:0;width:42%;border-radius:999px;background:linear-gradient(90deg,var(--accent2),var(--accent))}
+  .slider .knob{position:absolute;left:42%;top:50%;transform:translate(-50%,-50%);width:20px;height:20px;border-radius:50%;
+    background:#fff;box-shadow:0 4px 12px rgba(0,0,0,.4)}
+  .val{font-variant-numeric:tabular-nums;font-weight:680;font-size:14px;min-width:26px;text-align:right}
+  .pill{font-size:12.5px;font-weight:600;color:var(--text);background:rgba(255,255,255,.10);
+    border:1px solid var(--stroke);padding:7px 13px;border-radius:11px}
+  .pill.drop::after{content:"  ⌄";color:var(--muted)}
+  .sw{width:26px;height:26px;border-radius:8px;border:2px solid rgba(255,255,255,.5);position:relative}
+  .sw.on{outline:2px solid var(--accent);outline-offset:2px}
+  .toggle{width:46px;height:27px;border-radius:999px;background:linear-gradient(140deg,#48e6a0,#2bbf85);position:relative;border:1px solid var(--stroke)}
+  .toggle .n{position:absolute;top:2px;right:2px;width:21px;height:21px;border-radius:50%;background:#fff;box-shadow:0 2px 6px rgba(0,0,0,.4)}
+  .safe{font-size:11.5px;color:#9affd0;font-weight:600}
+
+  /* footer / generate */
+  .foot{display:flex;align-items:center;gap:16px;margin-top:24px}
+  .gen{margin-left:auto;display:flex;align-items:center;gap:10px;font-size:15px;font-weight:700;color:#0b0a1f;
+    padding:14px 26px;border-radius:16px;cursor:default;
+    background:linear-gradient(140deg,#fff,#cfd7ff);
+    box-shadow:0 10px 30px rgba(124,140,255,.55),0 0 0 1px rgba(255,255,255,.4) inset}
+  .foot .note{color:var(--muted);font-size:12.5px}
+
+  .watermark{position:fixed;bottom:14px;z-index:2;color:rgba(255,255,255,.4);font-size:11.5px;letter-spacing:.4px}
+</style>
+</head>
+<body>
+  <div class="bg">
+    <div class="blob b1"></div><div class="blob b2"></div>
+    <div class="blob b3"></div><div class="blob b4"></div>
+  </div>
+
+  <div class="app">
+    <!-- sidebar -->
+    <aside class="rail glass">
+      <div class="brand">
+        <div class="logo">◈</div>
+        <div><b>Facet</b><span>Shorts studio</span></div>
+      </div>
+      <div class="nav"><span class="i">⌂</span> Home</div>
+      <div class="nav active"><span class="i">＋</span> Create</div>
+      <div class="nav"><span class="i">◎</span> Angles <span class="badge">18</span></div>
+      <div class="nav"><span class="i">≋</span> Queue</div>
+      <div class="nav"><span class="i">▷</span> Publish <span class="badge">5</span></div>
+      <div class="nav"><span class="i">▤</span> Library</div>
+      <div class="spacer"></div>
+      <div class="nav"><span class="i">⚙</span> Settings</div>
+      <div class="health glass" style="margin-top:6px;border-radius:14px">
+        <span class="dot"></span> All systems ready · Gemini 2.5 · Remotion
+      </div>
+    </aside>
+
+    <!-- main: Create screen -->
+    <main class="main">
+      <div class="h1">New batch</div>
+      <div class="sub">Pick what to make and how hands-off it should be. Generation runs automatically; you steer at two gates.</div>
+
+      <div class="section">Video type</div>
+      <div class="cards">
+        <div class="card glass sel">
+          <div class="emoji">🔩</div>
+          <h3>The Hidden ___ of Everyday Things</h3>
+          <p>Reveal the hidden engineering, economics or psychology inside ordinary objects. Original by default, high curiosity-gap retention.</p>
+          <span class="tag">recommended</span>
+        </div>
+        <div class="card glass">
+          <div class="emoji">🎭</div>
+          <h3>Original first-person stories</h3>
+          <p>AI-written micro-stories with a hook and a twist — the pull of Reddit stories, none of the reused-content risk.</p>
+          <span class="tag">niche: reddit_stories</span>
+        </div>
+      </div>
+
+      <div class="section">Settings</div>
+      <div class="panel glass">
+        <div class="row">
+          <div class="lab">How many<small>videos this batch</small></div>
+          <div class="ctl"><div class="slider"><div class="fill"></div><div class="knob"></div></div><div class="val">8</div></div>
+        </div>
+        <div class="row">
+          <div class="lab">The dial<small>how hands-off</small></div>
+          <div class="ctl"><div class="seg"><span>Fully auto</span><span class="on">Review angles</span><span>Review all</span></div></div>
+        </div>
+        <div class="row">
+          <div class="lab">Voice</div>
+          <div class="ctl"><div class="pill drop">Rotate (5 voices)</div></div>
+        </div>
+        <div class="row">
+          <div class="lab">Caption style<small>white text · accent box</small></div>
+          <div class="ctl">
+            <div class="sw on" style="background:linear-gradient(140deg,#fff 60%,#FFA500 60%)"></div>
+            <div class="sw" style="background:linear-gradient(140deg,#fff 60%,#FFD700 60%)"></div>
+            <div class="sw" style="background:linear-gradient(140deg,#fff 60%,#00FF00 60%)"></div>
+          </div>
+        </div>
+        <div class="row">
+          <div class="lab">Render engine</div>
+          <div class="ctl"><div class="seg"><span class="on">Remotion</span><span>FFmpeg</span><span>Auto</span></div></div>
+        </div>
+        <div class="row">
+          <div class="lab">Length</div>
+          <div class="ctl"><div class="pill drop">35–45s</div></div>
+        </div>
+        <div class="row">
+          <div class="lab">Grounding<small>real facts via web search</small></div>
+          <div class="ctl"><span class="safe">On</span><div class="toggle"><div class="n"></div></div></div>
+        </div>
+        <div class="row">
+          <div class="lab">Publishing</div>
+          <div class="ctl"><div class="pill drop">Private</div><span class="safe">Dry-run on · nothing publishes</span><div class="toggle"><div class="n"></div></div></div>
+        </div>
+      </div>
+
+      <div class="foot">
+        <div class="note">Next: review 8 proposed angles →</div>
+        <div class="gen">✦ Generate batch</div>
+      </div>
+    </main>
+  </div>
+
+  <div class="watermark">Facet — non-functional design mockup · see docs/LAUNCHER_DESIGN.md</div>
+</body>
+</html>
