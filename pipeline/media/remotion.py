@@ -82,11 +82,39 @@ def render(*, job_dir, voice_mp3: str, background_path: str, caption_track: list
         f"--frames=0-{duration_in_frames - 1}",
         "--log=error",
     ]
-    print(f"  🎬 Remotion rendering {os.path.basename(out_mp4)} ({duration:.1f}s @ {FPS}fps)...")
+    # Use an existing Chromium instead of downloading Remotion's headless shell.
+    # Lets renders work on hosts whose egress blocks remotion.media (sandboxes,
+    # locked-down CI). Override with REMOTION_BROWSER_EXECUTABLE.
+    browser = _browser_executable()
+    if browser:
+        cmd.append(f"--browser-executable={browser}")
+    # Chrome mode: "headless-shell" (Remotion default) needs the downloadable
+    # shell; "chrome-for-testing" uses the new headless mode that a normal/system
+    # Chrome supports. When we supply our own binary it's a full Chrome, so
+    # default to chrome-for-testing unless overridden.
+    chrome_mode = os.getenv("REMOTION_CHROME_MODE") or ("chrome-for-testing" if browser else None)
+    if chrome_mode:
+        cmd.append(f"--chrome-mode={chrome_mode}")
+    print(f"  🎬 Remotion rendering {os.path.basename(out_mp4)} ({duration:.1f}s @ {FPS}fps)"
+          + (f" [chromium={os.path.basename(browser)}, mode={chrome_mode}]" if browser else "") + "...")
     result = subprocess.run(cmd, cwd=str(REMOTION_DIR), capture_output=True, text=True)
     if result.returncode != 0:
         raise RemotionUnavailable(f"Remotion render failed:\n{result.stderr[-1500:]}")
     return out_mp4
+
+
+def _browser_executable() -> str | None:
+    """Path to a Chromium/Chrome to render with, or None to let Remotion manage
+    its own headless shell (the default on a normal network).
+
+    Only honours an explicit REMOTION_BROWSER_EXECUTABLE — useful on hosts whose
+    egress blocks Remotion's shell download, where you can point it at a
+    compatible chrome-headless-shell. We deliberately do NOT auto-discover a
+    system/Playwright Chrome: forcing an arbitrary binary can break the common
+    case (e.g. a full Chrome that dropped old-headless mode).
+    """
+    explicit = os.getenv("REMOTION_BROWSER_EXECUTABLE")
+    return explicit if explicit and os.path.exists(explicit) else None
 
 
 def _safe_duration(path: str) -> float:
