@@ -10,8 +10,25 @@ const defaultProps: ShortProps = {
   audioSrc: 'voice.mp3',
   backgroundSrc: 'background.mp4',
   captions: [
-    {text: 'This is a preview caption', start: 0, end: 1.5},
-    {text: 'rendered with Remotion', start: 1.5, end: 3},
+    {
+      text: 'THIS IS A',
+      start: 0,
+      end: 1.5,
+      words: [
+        {word: 'THIS', start: 0, end: 0.5},
+        {word: 'IS', start: 0.5, end: 0.9},
+        {word: 'A', start: 0.9, end: 1.5},
+      ],
+    },
+    {
+      text: 'PREVIEW CAPTION',
+      start: 1.5,
+      end: 3,
+      words: [
+        {word: 'PREVIEW', start: 1.5, end: 2.3},
+        {word: 'CAPTION', start: 2.3, end: 3},
+      ],
+    },
   ],
   title: 'the hidden detail of everyday things',
   introSfx: true,

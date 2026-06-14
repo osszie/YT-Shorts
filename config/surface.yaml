@@ -29,13 +29,13 @@ voices:
 # ASS caption treatments. Colours are ASS BGR (&Hbbggrr&) for the FFmpeg engine;
 # web_* are CSS hex for the Remotion engine. Keep the two in sync per style.
 caption_styles:
-  - id: bold_yellow
+  - id: bold_orange
     fontname: Arial
     fontsize: 72
-    primary: "&H0000FFFF&"     # yellow
+    primary: "&H00FFFFFF&"     # white text
     outline: "&H00000000&"     # black
-    highlight: "&H0000A5FF&"   # orange emphasis
-    web_primary: "#FFFF00"
+    highlight: "&H0000A5FF&"   # orange emphasis (active-word box)
+    web_primary: "#FFFFFF"
     web_highlight: "#FFA500"
   - id: clean_white
     fontname: Arial

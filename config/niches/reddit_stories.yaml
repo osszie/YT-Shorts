@@ -41,5 +41,5 @@ metadata:
 
 surface:
   voices: [guy, christopher, eric]
-  caption_styles: [bold_yellow, punch_green]
+  caption_styles: [bold_orange, punch_green]
   intro_styles: [pop, clean]

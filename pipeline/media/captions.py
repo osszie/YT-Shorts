@@ -98,7 +98,20 @@ def _sanitize(timings, total):
     return out
 
 
-def _chunk(timings, max_words=6, min_sec=0.9, max_sec=2.2):
+def _mk_chunk(words: list, start: float, end: float) -> dict:
+    """A caption chunk carries its phrase text plus per-word timings, so the
+    Remotion engine can do modern word-by-word (karaoke) highlighting."""
+    return {
+        "text": " ".join(w for w, _, _ in words),
+        "start": start,
+        "end": end,
+        "words": [{"word": w, "start": s, "end": e} for w, s, e in words],
+    }
+
+
+def _chunk(timings, max_words=4, min_sec=0.7, max_sec=1.8):
+    """Group words into short, punchy chunks (modern Shorts captions show only a
+    few words at a time). Returns a list of chunk dicts (see _mk_chunk)."""
     chunks, cur, start = [], [], None
     for word, s, e in timings:
         if start is None:
@@ -109,10 +122,10 @@ def _chunk(timings, max_words=6, min_sec=0.9, max_sec=2.2):
         if word.endswith((".", "!", "?", ",", ";", ":")) and dur >= min_sec:
             finalize = True
         if finalize:
-            chunks.append((" ".join(w for w, _, _ in cur), start, e))
+            chunks.append(_mk_chunk(cur, start, e))
             cur, start = [], None
     if cur:
-        chunks.append((" ".join(w for w, _, _ in cur), start, timings[-1][2]))
+        chunks.append(_mk_chunk(cur, start, timings[-1][2]))
     return chunks
 
 
@@ -142,8 +155,7 @@ def build_track(script_text: str, voice_mp3: str) -> tuple[list[dict], float]:
     total = duration_seconds(voice_mp3)
     timings = _whisper_word_timings(voice_mp3) or _estimated_word_timings(script_text, total)
     timings = _sanitize(timings, total)
-    chunks = [{"text": t, "start": s, "end": e} for t, s, e in _chunk(timings)]
-    return chunks, total
+    return _chunk(timings), total
 
 
 def write_ass(track: list[dict], out_ass: str, style: dict) -> str:

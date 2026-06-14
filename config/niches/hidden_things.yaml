@@ -55,5 +55,5 @@ metadata:
 
 surface:
   voices: [guy, aria, christopher, jenny, eric]
-  caption_styles: [bold_yellow, clean_white, punch_green]
+  caption_styles: [bold_orange, clean_white, punch_green]
   intro_styles: [pop, clean]
