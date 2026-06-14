@@ -20,7 +20,7 @@ from . import ROOT
 load_dotenv(dotenv_path=str(ROOT / ".env"))
 
 GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY")
-MODEL_NAME = os.getenv("GEMINI_MODEL", "gemini-2.0-flash")
+MODEL_NAME = os.getenv("GEMINI_MODEL", "gemini-2.5-flash")
 EMBED_MODEL = os.getenv("GEMINI_EMBED_MODEL", "models/text-embedding-004")
 # Default to the REST transport: the gRPC client uses its own root store and
 # fails behind TLS-intercepting proxies (managed/corporate networks) with
