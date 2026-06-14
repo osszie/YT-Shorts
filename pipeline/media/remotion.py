@@ -88,8 +88,15 @@ def render(*, job_dir, voice_mp3: str, background_path: str, caption_track: list
     browser = _browser_executable()
     if browser:
         cmd.append(f"--browser-executable={browser}")
+    # Chrome mode: "headless-shell" (Remotion default) needs the downloadable
+    # shell; "chrome-for-testing" uses the new headless mode that a normal/system
+    # Chrome supports. When we supply our own binary it's a full Chrome, so
+    # default to chrome-for-testing unless overridden.
+    chrome_mode = os.getenv("REMOTION_CHROME_MODE") or ("chrome-for-testing" if browser else None)
+    if chrome_mode:
+        cmd.append(f"--chrome-mode={chrome_mode}")
     print(f"  🎬 Remotion rendering {os.path.basename(out_mp4)} ({duration:.1f}s @ {FPS}fps)"
-          + (f" [chromium={os.path.basename(browser)}]" if browser else "") + "...")
+          + (f" [chromium={os.path.basename(browser)}, mode={chrome_mode}]" if browser else "") + "...")
     result = subprocess.run(cmd, cwd=str(REMOTION_DIR), capture_output=True, text=True)
     if result.returncode != 0:
         raise RemotionUnavailable(f"Remotion render failed:\n{result.stderr[-1500:]}")
