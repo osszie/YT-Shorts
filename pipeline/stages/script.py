@@ -50,15 +50,17 @@ class ScriptStage(Stage):
             )
             if nudge:
                 prompt += f"\n\nIMPORTANT: {nudge}"
-            try:
-                if grounding:
-                    script, sources = llm.generate_grounded(prompt)
-                else:
-                    script = llm.generate_text(prompt)
-            except Exception as e:
-                job.log(self.name, f"llm script failed ({e}); using fallback")
-
-        if not script.strip():
+            # Let errors (esp. rate-limit 429 after retries) propagate so the
+            # orchestrator fails the job (retryable) instead of shipping a
+            # template script in place of real generated content.
+            if grounding:
+                script, sources = llm.generate_grounded(prompt)
+            else:
+                script = llm.generate_text(prompt)
+            if not script.strip():
+                raise RuntimeError("LLM returned an empty script")
+        else:
+            # Offline spine only (no API key): deterministic fallback.
             script = self._fallback(subject, angle, fmt, job.data.get("regen_count", 0))
 
         script = script.strip()
