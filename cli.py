@@ -175,7 +175,7 @@ def cmd_show(args) -> int:
 
 def cmd_doctor(args) -> int:
     from pipeline import doctor
-    groups = doctor.run_checks()
+    groups = doctor.run_checks(probe=getattr(args, "probe", False))
     icon = {doctor.OK: "✓", doctor.WARN: "!", doctor.FAIL: "✗"}
     for group, checks in groups.items():
         print(f"\n{group}:")
@@ -255,7 +255,9 @@ def build_parser() -> argparse.ArgumentParser:
 
     sub.add_parser("status", help="overview of all jobs").set_defaults(func=cmd_status)
     sub.add_parser("niches", help="list available niches").set_defaults(func=cmd_niches)
-    sub.add_parser("doctor", help="check environment readiness").set_defaults(func=cmd_doctor)
+    s = sub.add_parser("doctor", help="check environment readiness")
+    s.add_argument("--probe", action="store_true", help="also make a live Gemini call to check the key + quota")
+    s.set_defaults(func=cmd_doctor)
     return p
 
 

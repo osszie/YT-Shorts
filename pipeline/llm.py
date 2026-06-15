@@ -11,7 +11,9 @@ from __future__ import annotations
 import json
 import os
 import pathlib
+import random
 import re
+import time
 
 from dotenv import load_dotenv
 
@@ -28,6 +30,16 @@ EMBED_MODEL = os.getenv("GEMINI_EMBED_MODEL", "models/text-embedding-004")
 # stack. Override with GEMINI_TRANSPORT=grpc if you prefer it.
 TRANSPORT = os.getenv("GEMINI_TRANSPORT", "rest")
 
+# Rate-limit resilience. Gemini's free tier has a low requests-per-minute cap, so
+# a batch quickly hits HTTP 429 and (without this) every stage falls back to
+# templates. Retry transient 429/503 with exponential backoff, honouring a
+# server-suggested retry_delay when present, before giving up.
+MAX_RETRIES = int(os.getenv("GEMINI_MAX_RETRIES", "5"))
+RETRY_BASE = float(os.getenv("GEMINI_RETRY_BASE", "2.0"))
+RETRY_CAP = float(os.getenv("GEMINI_RETRY_CAP", "60.0"))
+_RETRYABLE = ("429", "resourceexhausted", "resource exhausted", "rate limit",
+              "quota", "exceeded", "503", "unavailable", "deadline", "500")
+
 
 class LLMUnavailable(RuntimeError):
     """Raised when no API key is configured or the API call fails hard."""
@@ -38,6 +50,38 @@ _configured = False
 
 def available() -> bool:
     return bool(GOOGLE_API_KEY)
+
+
+def is_retryable(e: Exception) -> bool:
+    """True for transient rate-limit / availability errors worth retrying."""
+    s = str(e).lower()
+    return any(tok in s for tok in _RETRYABLE)
+
+
+def _retry_delay(e: Exception, attempt: int) -> float:
+    m = (re.search(r"retry_delay\s*\{?\s*seconds:\s*(\d+)", str(e))
+         or re.search(r"retry in (\d+(?:\.\d+)?)\s*s", str(e), re.I))
+    if m:
+        return min(RETRY_CAP, float(m.group(1)) + 1.0)
+    return min(RETRY_CAP, RETRY_BASE * (2 ** attempt)) + random.uniform(0, 0.75)
+
+
+def _call(fn):
+    """Run a Gemini call with retry + backoff on transient rate-limit errors."""
+    last = None
+    for attempt in range(MAX_RETRIES + 1):
+        try:
+            return fn()
+        except Exception as e:  # noqa: BLE001
+            last = e
+            if attempt < MAX_RETRIES and is_retryable(e):
+                delay = _retry_delay(e, attempt)
+                print(f"  ⏳ Gemini rate-limited (429); retrying in {delay:.0f}s "
+                      f"[{attempt + 1}/{MAX_RETRIES}]")
+                time.sleep(delay)
+                continue
+            raise
+    raise last  # pragma: no cover
 
 
 def _ensure_configured():
@@ -79,7 +123,7 @@ def generate_text(prompt: str, *, temperature: float = 1.0, max_tokens: int = 20
             "max_output_tokens": max_tokens,
         },
     )
-    resp = model.generate_content(prompt, request_options=RequestOptions(timeout=90))
+    resp = _call(lambda: model.generate_content(prompt, request_options=RequestOptions(timeout=90)))
     if not resp.text or not resp.text.strip():
         raise LLMUnavailable("Empty response from Gemini.")
     return resp.text
@@ -101,9 +145,11 @@ def generate_json(prompt: str, *, temperature: float = 1.0, max_tokens: int = 20
         },
     )
     try:
-        resp = model.generate_content(prompt, request_options=RequestOptions(timeout=90))
+        resp = _call(lambda: model.generate_content(prompt, request_options=RequestOptions(timeout=90)))
         return _extract_json(resp.text)
-    except Exception:
+    except Exception as e:
+        if is_retryable(e):
+            raise  # already retried; surface so the stage can fail/retry the job
         # Some models reject JSON mode; retry as plain text and parse.
         return _extract_json(generate_text(prompt, temperature=temperature, max_tokens=max_tokens))
 
@@ -126,7 +172,7 @@ def generate_grounded(prompt: str, *, temperature: float = 0.9, max_tokens: int 
                 generation_config={"temperature": temperature, "max_output_tokens": max_tokens},
                 tools=tool,
             )
-            resp = model.generate_content(prompt, request_options=RequestOptions(timeout=120))
+            resp = _call(lambda: model.generate_content(prompt, request_options=RequestOptions(timeout=120)))
             sources: list[str] = []
             try:
                 for cand in resp.candidates:
@@ -139,9 +185,11 @@ def generate_grounded(prompt: str, *, temperature: float = 0.9, max_tokens: int 
                 pass
             if resp.text and resp.text.strip():
                 return resp.text, sources
-        except Exception:
-            continue
-    # Grounding unavailable — degrade to a normal generation.
+        except Exception as e:
+            if is_retryable(e):
+                raise  # rate-limited after retries; let the stage fail/retry the job
+            continue   # this grounding tool isn't supported; try the next / ungrounded
+    # Grounding tool unavailable for this model — degrade to a normal generation.
     return generate_text(prompt, temperature=temperature, max_tokens=max_tokens), []
 
 
@@ -152,7 +200,8 @@ def embed(text: str) -> list[float] | None:
     try:
         _ensure_configured()
         import google.generativeai as genai
-        res = genai.embed_content(model=EMBED_MODEL, content=text, task_type="semantic_similarity")
+        res = _call(lambda: genai.embed_content(
+            model=EMBED_MODEL, content=text, task_type="semantic_similarity"))
         return res["embedding"]
     except Exception:
         return None

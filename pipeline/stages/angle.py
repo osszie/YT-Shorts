@@ -43,16 +43,18 @@ class AngleStage(Stage):
                 "topic, not a fact list. They must be genuinely different from each other.\n"
                 'Return JSON: {"angles": ["...", "...", "..."]}'
             )
-            try:
-                out = llm.generate_json(prompt)
-                candidates = [a.strip() for a in out.get("angles", []) if a and a.strip()]
-            except Exception as e:
-                job.log(self.name, f"llm angle failed ({e}); using fallback")
-
-        if not candidates:
+            # Let errors (esp. rate-limit 429 after retries) propagate: the
+            # orchestrator marks the job failed/retryable rather than emitting a
+            # fallback that leaks the lens scaffolding as if it were the angle.
+            out = llm.generate_json(prompt)
+            candidates = [a.strip() for a in out.get("angles", []) if a and a.strip()]
+            if not candidates:
+                raise RuntimeError("LLM returned no angle candidates")
+        else:
+            # Offline spine only (no API key): clean generic angles, no scaffolding.
             candidates = [
-                f"{lens['summary']} — applied to {subject}: {lens['prompt'].strip()}",
-                f"What {subject} reveals about {domain} once you actually look.",
+                f"What {subject} secretly reveals once you actually look at it.",
+                f"The {domain or 'hidden'} reason {subject} is the way it is — and why it matters.",
             ]
 
         job.data["lens"] = lens_id

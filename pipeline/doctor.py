@@ -85,7 +85,37 @@ def _check_backgrounds() -> list[tuple[str, str, str]]:
 def _check_llm() -> list[tuple[str, str, str]]:
     key = bool(os.getenv("GOOGLE_API_KEY"))
     return [("GOOGLE_API_KEY", OK if key else WARN,
-             "set" if key else "unset — LLM angles/scripts/grounding/embeddings disabled (fallbacks used)")]
+             "set (note: free-tier requests-per-minute is low — use a paid tier for batches)"
+             if key else "unset — LLM angles/scripts/grounding/embeddings disabled (fallbacks used)")]
+
+
+def probe_llm() -> tuple[str, str, str]:
+    """Live one-shot Gemini call (retries disabled) to check the key actually
+    works *right now* — distinguishing a valid-but-rate-limited key from a
+    rejected one or a network/proxy problem. Never returns FAIL: even a bad key
+    only limits LLM features; the offline spine still makes videos."""
+    if not os.getenv("GOOGLE_API_KEY"):
+        return ("Gemini live probe", WARN, "no GOOGLE_API_KEY — skipped (offline fallbacks used)")
+    if not _have("google.generativeai"):
+        return ("Gemini live probe", WARN, "google-generativeai not installed")
+    from . import llm
+    saved = llm.MAX_RETRIES
+    llm.MAX_RETRIES = 0  # don't let backoff hang the probe on a hard rate limit
+    try:
+        txt = llm.generate_text("Reply with the single word: ok", max_tokens=8)
+        return ("Gemini live probe", OK, f"reachable, quota available ({llm.MODEL_NAME})")
+    except Exception as e:  # noqa: BLE001
+        s = str(e).lower()
+        if any(t in s for t in ("429", "quota", "exhausted", "rate")):
+            return ("Gemini live probe", WARN,
+                    "rate-limited / out of quota — wait, or use a paid tier for batches")
+        if any(t in s for t in ("api key", "api_key", "permission", "401", "403", "invalid", "denied")):
+            return ("Gemini live probe", WARN, "key rejected — check GOOGLE_API_KEY (offline spine still works)")
+        if any(t in s for t in ("certificate", "ssl", "connect", "handshake")):
+            return ("Gemini live probe", WARN, "can't reach Gemini (network/proxy) — try GEMINI_TRANSPORT=rest")
+        return ("Gemini live probe", WARN, f"call failed: {str(e)[:80]}")
+    finally:
+        llm.MAX_RETRIES = saved
 
 
 def _check_upload() -> list[tuple[str, str, str]]:
@@ -97,8 +127,8 @@ def _check_upload() -> list[tuple[str, str, str]]:
     ]
 
 
-def run_checks() -> dict[str, list[tuple[str, str, str]]]:
-    return {
+def run_checks(probe: bool = False) -> dict[str, list[tuple[str, str, str]]]:
+    groups = {
         "Config": _check_config(),
         "Python packages": _check_python(),
         "Binaries": _check_binaries(),
@@ -107,6 +137,9 @@ def run_checks() -> dict[str, list[tuple[str, str, str]]]:
         "LLM": _check_llm(),
         "Upload": _check_upload(),
     }
+    if probe:
+        groups["LLM"] = groups["LLM"] + [probe_llm()]
+    return groups
 
 
 def summarize(groups: dict[str, list[tuple[str, str, str]]]) -> dict:
