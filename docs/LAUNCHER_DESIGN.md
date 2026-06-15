@@ -1,18 +1,18 @@
-# Facet — Launcher & Control Surface (Design + Strategy)
+# Shortcutter — Launcher & Control Surface (Design + Strategy)
 
-> Working name: **Facet** (each video is a *facet* — a single angle on an everyday
-> thing — and the look is cut glass). Name is a placeholder; easy to change.
+> **Shortcutter** — it turns Shorts production into a shortcut: open the app, pick
+> a type, steer at two gates, done. (Shorts + shortcut.)
 
-Status: **design only.** No app code yet. This document is the plan for a desktop
-application that becomes the control surface for the pipeline described in
-[`STRATEGY.md`](../STRATEGY.md). Read that first — Facet is a *front end* over that
-system, never a replacement for its guardrails.
+Status: **design only.** No app code yet. This document is the plan for a **Mac-first**
+desktop application that becomes the control surface for the pipeline described in
+[`STRATEGY.md`](../STRATEGY.md). Read that first — Shortcutter is a *front end* over
+that system, never a replacement for its guardrails.
 
 ---
 
 ## 1. Vision
 
-Open Facet like a native Mac/Windows app. A calm, translucent "liquid glass"
+Open Shortcutter like a native Mac app. A calm, translucent "liquid glass"
 workspace where you:
 
 - pick **what kind of video** to make (the niche / video type),
@@ -22,7 +22,7 @@ workspace where you:
 - watch jobs move through the pipeline and **preview** the finished Shorts,
 
 …without ever touching a terminal. The CLI keeps working underneath for power use
-and automation; Facet is the friendly steering wheel.
+and automation; Shortcutter is the friendly steering wheel.
 
 ## 2. Why a launcher fits the strategy (not just polish)
 
@@ -68,22 +68,30 @@ from / writes to config the pipeline already understands.
 - *Original first-person stories*
 - *(any niche you add as YAML shows up here automatically)*
 
-**Settings panel** (a glass sheet of controls):
+**Settings — curated by default, Advanced on demand.** Most batches need only a
+handful of choices, so the Create screen shows a **curated** set and tucks the rest
+behind an **"Advanced ⌄"** disclosure (collapsed by default). Curation is purely
+about *what's surfaced first* — every control still reads/writes config the
+pipeline already understands.
+
+*Curated (always visible):*
 - **How many** — batch size slider (1–25).
 - **The dial** — *Fully auto* ↔ *Review angles* ↔ *Review everything* (sets which
   gates pause).
-- **Lens emphasis** — which angle lenses to favour (Surprise / Hot take / Hidden
-  connection / What if / Big meaning) → `config/lenses.yaml`.
-- **Format mix** — which structural skeletons to rotate → `config/formats.yaml`.
-- **Voice** — pick from the voice set or "rotate" → `config/surface.yaml`.
+- **Voice** — pick one, or "Rotate" → `config/surface.yaml`.
 - **Caption style** — live preview swatches (the white-text + accent-box look) →
   `config/surface.yaml`.
-- **Render engine** — Remotion (animated) / FFmpeg / Auto → `RENDER_ENGINE`.
+- **Publishing** — privacy + the **dry-run toggle (on by default**, with a clear
+  warning when turned off).
+
+*Advanced (hidden behind "Advanced ⌄"):*
+- **Lens emphasis** — favour certain angle lenses → `config/lenses.yaml`.
+- **Format mix** — which skeletons to rotate → `config/formats.yaml`.
+- **Render engine** — Remotion / FFmpeg / Auto → `RENDER_ENGINE`.
 - **Length & pacing** — target seconds → niche `script.target_words`.
-- **Grounding** — pull real facts on/off → niche `script.grounding`.
+- **Grounding** — real facts on/off → niche `script.grounding`.
 - **Model** — Gemini model picker → `GEMINI_MODEL`.
-- **Publishing** — privacy (private/unlisted/public), schedule, **dry-run toggle
-  (on by default, with a clear warning when turned off)**.
+- **Similarity threshold**, **schedule**, **paths & API keys**.
 
 A primary **Generate** button (softly glowing) kicks off a batch and slides you to
 **Angles**.
@@ -134,12 +142,12 @@ philosophy as `config/surface.yaml` for videos.
 
 ## 7. Technical architecture (for when we build)
 
-Facet is a thin, stateless **view + controller** over the pipeline. The pipeline
+Shortcutter is a thin, stateless **view + controller** over the pipeline. The pipeline
 stays the single source of truth (job records in `jobs/`, config in `config/`).
 
 ```
 ┌──────────────────────────────────────────────┐
-│  Facet desktop app                            │
+│  Shortcutter desktop app                            │
 │  ┌────────────────────┐   ┌────────────────┐  │
 │  │ React UI (glass)   │ → │ local bridge   │  │
 │  │ Home/Create/Gates… │   │ (HTTP/IPC)     │  │
@@ -192,13 +200,17 @@ The CLI remains first-class throughout (automation, power users, CI).
 - **Cross-platform.** Liquid glass reads as very "Apple," but must degrade
   gracefully on Windows/Linux.
 
-## 10. Open questions (for you)
+## 10. Decisions & open questions
 
-- **Name** — keep *Facet*, or something else?
-- **Platform priority** — Mac first, or Mac+Windows together?
+**Decided:**
+- **Name:** **Shortcutter** (Shorts + shortcut).
+- **Platform:** **Mac-first** — a notarized `.app`, SF Pro, native vibrancy.
+  Windows comes later; glass degrades gracefully when it does.
+- **Create screen:** **curated set + "Advanced ⌄" hidden** by default (see §4).
+
+**Still open:**
 - **Local-only vs. account** — single-machine app, or eventually cloud sync of jobs?
-- **How much control on the Create screen** — expose every config knob, or a
-  curated few with "advanced" hidden by default? (I lean curated + Advanced.)
+- **Accent / theme** — one fixed brand accent, or user-pickable?
 
 ---
 

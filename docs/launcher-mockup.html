@@ -3,10 +3,10 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>Facet — launcher mockup</title>
+<title>Shortcutter — launcher mockup</title>
 <!--
-  NON-FUNCTIONAL VISUAL MOCKUP of the "Facet" launcher described in
-  docs/LAUNCHER_DESIGN.md. No app logic — this is just the liquid-glass look so
+  NON-FUNCTIONAL VISUAL MOCKUP of the "Shortcutter" launcher (Mac-first) described
+  in docs/LAUNCHER_DESIGN.md. No app logic — this is just the liquid-glass look so
   you can react to the design. Open it in any browser. Self-contained (no network).
 -->
 <style>
@@ -135,8 +135,8 @@
     <!-- sidebar -->
     <aside class="rail glass">
       <div class="brand">
-        <div class="logo">◈</div>
-        <div><b>Facet</b><span>Shorts studio</span></div>
+        <div class="logo">✂</div>
+        <div><b>Shortcutter</b><span>Shorts studio</span></div>
       </div>
       <div class="nav"><span class="i">⌂</span> Home</div>
       <div class="nav active"><span class="i">＋</span> Create</div>
@@ -195,20 +195,12 @@
           </div>
         </div>
         <div class="row">
-          <div class="lab">Render engine</div>
-          <div class="ctl"><div class="seg"><span class="on">Remotion</span><span>FFmpeg</span><span>Auto</span></div></div>
-        </div>
-        <div class="row">
-          <div class="lab">Length</div>
-          <div class="ctl"><div class="pill drop">35–45s</div></div>
-        </div>
-        <div class="row">
-          <div class="lab">Grounding<small>real facts via web search</small></div>
-          <div class="ctl"><span class="safe">On</span><div class="toggle"><div class="n"></div></div></div>
-        </div>
-        <div class="row">
           <div class="lab">Publishing</div>
           <div class="ctl"><div class="pill drop">Private</div><span class="safe">Dry-run on · nothing publishes</span><div class="toggle"><div class="n"></div></div></div>
+        </div>
+        <div class="row">
+          <div class="lab" style="color:var(--muted)">Advanced<small>lenses · formats · engine · length · grounding · model</small></div>
+          <div class="ctl"><span class="pill drop" style="color:var(--muted)">Show</span></div>
         </div>
       </div>
 
@@ -219,6 +211,6 @@
     </main>
   </div>
 
-  <div class="watermark">Facet — non-functional design mockup · see docs/LAUNCHER_DESIGN.md</div>
+  <div class="watermark">Shortcutter — non-functional design mockup · see docs/LAUNCHER_DESIGN.md</div>
 </body>
 </html>
