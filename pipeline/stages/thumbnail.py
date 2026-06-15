@@ -5,6 +5,8 @@ video's own caption palette so the thumbnail and video look like one brand.
 """
 from __future__ import annotations
 
+import os
+
 from .. import llm
 from ..config import Config
 from ..job import Job
@@ -22,8 +24,12 @@ class ThumbnailStage(Stage):
         subject = job.data.get("subject", "")
         angle = job.data.get("angle", "")
 
+        # Headline defaults to the (free) subject-derived text — saves one LLM
+        # call per video. Set THUMBNAIL_LLM_HEADLINE=true to spend a call on a
+        # punchier LLM headline instead.
         headline = ""
-        if llm.available():
+        use_llm = os.getenv("THUMBNAIL_LLM_HEADLINE", "false").lower() == "true"
+        if use_llm and llm.available():
             prompt = (
                 "Write a thumbnail overlay for a YouTube Short.\n"
                 f"Subject: {subject}\nAngle: {angle}\n"

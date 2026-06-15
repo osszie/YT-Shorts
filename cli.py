@@ -37,10 +37,29 @@ def _short(text: str, n: int = 60) -> str:
 # --- commands -------------------------------------------------------------
 
 def cmd_new(args) -> int:
+    from pipeline.stages.idea import generate_subjects
+    from pipeline.job import recent_subjects
+
     cfg = load_config(args.niche)
     print(f"Creating {args.count} job(s) for niche '{cfg.niche_id}', running to the ANGLE gate...\n")
+
+    # Bulk-generate the batch's subjects in ONE call (free-tier friendly), then
+    # pre-seed each job so the per-job idea stage is skipped. If it fails (e.g.
+    # rate limit), fall back to per-job idea generation.
+    seeds_meta: list[tuple[str, str]] = []
+    try:
+        seeds_meta = generate_subjects(cfg, args.count, recent_subjects())
+    except Exception as e:  # noqa: BLE001
+        print(f"  (bulk idea generation unavailable: {str(e)[:80]}; using per-job ideas)\n")
+
     for i in range(args.count):
         job = Job.create(cfg.niche_id)
+        if i < len(seeds_meta):
+            subject, domain = seeds_meta[i]
+            job.data["subject"] = subject
+            job.data["lens_domain"] = domain
+            job.mark_stage("idea", f"subject='{subject}' (bulk)")
+            job.save()
         print(f"[{i + 1}/{args.count}] {job.id}")
         status = run_job(job, cfg, stop_before_upload=True)
         sub = job.data.get("subject", "?")

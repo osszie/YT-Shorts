@@ -14,6 +14,45 @@ from ..job import Job, recent_subjects
 from .base import Stage
 
 
+def generate_subjects(cfg: Config, count: int, recent: list[str] | None = None) -> list[tuple[str, str]]:
+    """Generate `count` distinct subjects in a SINGLE LLM call (free-tier friendly).
+
+    Returns a list of (subject, lens_domain). `cli.py new` uses this to pre-seed a
+    whole batch with one request instead of one idea call per video. Offline (no
+    key) it draws distinct unused seeds — still zero calls.
+    """
+    idea_cfg = cfg.niche.get("idea", {})
+    seeds = idea_cfg.get("seeds", [])
+    domains = idea_cfg.get("lens_domains", ["engineering"])
+    recent_lower = {s.lower() for s in (recent or [])}
+
+    if llm.available():
+        domain = random.choice(domains)
+        prompt = (
+            f"Niche: {cfg.niche['name']}. {cfg.niche.get('description', '')}\n"
+            f"Give {count} DISTINCT, specific, concrete everyday subjects whose hidden "
+            f"{domain} story would surprise a smart viewer. Each must be physical and "
+            f"precise (an object or detail), never generic 'random facts'. Examples of "
+            f"the right altitude: {', '.join(seeds[:6])}.\n"
+            f"Avoid anything close to: {', '.join((recent or [])[:40]) or '(none yet)'}.\n"
+            f'Return JSON: {{"subjects": ["...", ...]}} with exactly {count} items.'
+        )
+        out = llm.generate_json(prompt)  # one call; let errors propagate to the caller
+        picked, seen = [], set(recent_lower)
+        for s in out.get("subjects", []):
+            s = (s or "").strip()
+            if s and s.lower() not in seen:
+                seen.add(s.lower())
+                picked.append((s, random.choice(domains)))
+        if picked:
+            return picked[:count]
+
+    pool = [s for s in seeds if s.lower() not in recent_lower] or list(seeds)
+    random.shuffle(pool)
+    return [((pool[i % len(pool)] if pool else "an everyday object"),
+             random.choice(domains)) for i in range(count)]
+
+
 class IdeaStage(Stage):
     name = "idea"
 

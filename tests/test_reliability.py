@@ -40,6 +40,26 @@ def test_call_gives_up_after_max_retries(monkeypatch):
         llm._call(_boom)
 
 
+def test_pace_waits_for_min_interval(monkeypatch):
+    slept = []
+    monkeypatch.setattr(llm, "MIN_INTERVAL", 5.0)
+    monkeypatch.setattr(llm.time, "sleep", lambda s: slept.append(s))
+    monkeypatch.setattr(llm.time, "monotonic", lambda: 1000.0)
+    llm._last_call = 1000.0  # a call "just happened"
+    llm._pace()
+    assert slept and abs(slept[0] - 5.0) < 0.01
+
+
+def test_pace_no_wait_when_idle(monkeypatch):
+    slept = []
+    monkeypatch.setattr(llm, "MIN_INTERVAL", 5.0)
+    monkeypatch.setattr(llm.time, "sleep", lambda s: slept.append(s))
+    monkeypatch.setattr(llm.time, "monotonic", lambda: 2000.0)
+    llm._last_call = 1000.0  # long ago — enough time elapsed
+    llm._pace()
+    assert not slept
+
+
 def test_call_does_not_retry_non_retryable(monkeypatch):
     monkeypatch.setattr(llm.time, "sleep", lambda _s: None)
     calls = {"n": 0}
