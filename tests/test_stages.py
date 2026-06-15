@@ -83,3 +83,42 @@ def test_metadata_builds_title_and_tags(cfg):
     assert meta["title"] and len(meta["title"]) <= 100
     assert meta["tags"]
     assert "#shorts" in meta["description"]
+
+
+# --- free-tier optimizations ---------------------------------------------
+
+def test_generate_subjects_offline_distinct(cfg):
+    from pipeline.stages.idea import generate_subjects
+    out = generate_subjects(cfg, 3)
+    assert len(out) == 3
+    for subj, dom in out:
+        assert isinstance(subj, str) and subj
+        assert dom in cfg.niche["idea"]["lens_domains"]
+
+
+def test_generate_subjects_bulk_llm_single_call(cfg, monkeypatch):
+    import pipeline.stages.idea as idea
+    calls = {"n": 0}
+
+    def fake_json(*_a, **_k):
+        calls["n"] += 1
+        return {"subjects": ["A thing", "B thing", "C thing"]}
+
+    monkeypatch.setattr(idea.llm, "available", lambda: True)
+    monkeypatch.setattr(idea.llm, "generate_json", fake_json)
+    out = idea.generate_subjects(cfg, 3)
+    assert [s for s, _ in out] == ["A thing", "B thing", "C thing"]
+    assert calls["n"] == 1  # one call for the whole batch
+
+
+def test_thumbnail_headline_defaults_to_subject(cfg, monkeypatch):
+    import pipeline.stages.thumbnail as th
+    from pipeline.media import thumbnail as tmod
+    monkeypatch.setattr(th.llm, "available", lambda: True)   # available...
+    monkeypatch.delenv("THUMBNAIL_LLM_HEADLINE", raising=False)  # ...but not enabled
+    monkeypatch.setattr(tmod, "render", lambda *a, **k: ("out.jpg", True))  # no ffmpeg
+    job = Job.create("hidden_things")
+    job.data.update(subject="the dimples on a golf ball", angle="x",
+                    caption_style=cfg.caption_styles()[0], video_duration=5.0)
+    th.ThumbnailStage().run(job, cfg)
+    assert job.data["thumbnail"]["headline"] == tmod.headline_from_subject("the dimples on a golf ball")

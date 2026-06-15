@@ -37,8 +37,13 @@ TRANSPORT = os.getenv("GEMINI_TRANSPORT", "rest")
 MAX_RETRIES = int(os.getenv("GEMINI_MAX_RETRIES", "5"))
 RETRY_BASE = float(os.getenv("GEMINI_RETRY_BASE", "2.0"))
 RETRY_CAP = float(os.getenv("GEMINI_RETRY_CAP", "60.0"))
+# Proactive pacing: keep at least this many seconds between calls so a batch
+# glides under the free tier's requests-per-minute cap instead of bursting into
+# 429s and waiting out the backoff. Set GEMINI_MIN_INTERVAL=0 on a paid tier.
+MIN_INTERVAL = float(os.getenv("GEMINI_MIN_INTERVAL", "4.0"))
 _RETRYABLE = ("429", "resourceexhausted", "resource exhausted", "rate limit",
               "quota", "exceeded", "503", "unavailable", "deadline", "500")
+_last_call = 0.0
 
 
 class LLMUnavailable(RuntimeError):
@@ -66,11 +71,22 @@ def _retry_delay(e: Exception, attempt: int) -> float:
     return min(RETRY_CAP, RETRY_BASE * (2 ** attempt)) + random.uniform(0, 0.75)
 
 
+def _pace():
+    """Sleep just enough to keep >= MIN_INTERVAL seconds between Gemini calls."""
+    global _last_call
+    if MIN_INTERVAL > 0:
+        wait = _last_call + MIN_INTERVAL - time.monotonic()
+        if wait > 0:
+            time.sleep(wait)
+    _last_call = time.monotonic()
+
+
 def _call(fn):
-    """Run a Gemini call with retry + backoff on transient rate-limit errors."""
+    """Run a Gemini call with pacing + retry/backoff on transient rate limits."""
     last = None
     for attempt in range(MAX_RETRIES + 1):
         try:
+            _pace()
             return fn()
         except Exception as e:  # noqa: BLE001
             last = e
