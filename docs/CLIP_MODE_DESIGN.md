@@ -145,15 +145,15 @@ cli.py publish-queue / approve-publish                  # identical to today
 - **Processing time** — long videos take real CPU (transcription + encoding).
 - **Scope creep** — keep the original mode first-class; clip mode is additive.
 
-## 12. Open questions (for you)
+## 12. Decisions
 
-- **Reframing MVP** — center-crop good enough to start, or do we need basic
-  face-centering from day one?
-- **Ingest** — local files first, or `yt-dlp` URL support in the MVP?
-- **Provider abstraction** — add Ollama/local now (for the "any model" promise) or
-  keep Gemini for the MVP and generalize later?
-- **Launcher** — Shortcutter's home screen becomes "New Short → Write or Clip"; want
-  the clip flow mocked up too?
+- **Reframing:** **face / active-speaker tracking from day one** (OpenCV/MediaPipe)
+  so the talking head stays in frame — not just a center crop.
+- **Ingest:** **local files only** for the MVP (`yt-dlp` URL support is a later phase).
+- **Model provider:** **build the provider abstraction now** (Gemini + local Ollama)
+  so "any model" is real from the start — benefits original mode too.
+
+Open later: launcher "Write or Clip" home screen + a clip-flow mockup.
 
 ---
 
