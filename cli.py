@@ -251,17 +251,31 @@ def cmd_approve_clip(args) -> int:
         print("Nothing to approve.")
         return 1
     cfg = _cfg_for(job)
+    # Slice the source transcript per clip (clip-relative timings) so each render
+    # job can caption itself without re-transcribing.
+    import json
+    words_all = []
+    tpath = job.artifact("transcript.json")
+    if tpath.exists():
+        with open(tpath, "r", encoding="utf-8") as f:
+            words_all = json.load(f).get("words", [])
+
     created = []
     for c in chosen:
+        s, e = c["start"], c["end"]
+        wslice = [{"word": w["word"], "start": round(w["start"] - s, 3), "end": round(w["end"] - s, 3)}
+                  for w in words_all if s <= w["start"] < e]
         child = Job.create(cfg.niche_id, mode="clip", data={
-            "source_path": job.data["source"]["path"], "clip": c, "from_source": job.id})
+            "source_path": job.data["source"]["path"], "clip": c,
+            "words": wslice, "clip_text": " ".join(w["word"] for w in wslice),
+            "from_source": job.id})
         created.append(child.id)
     job.approve_gate("clip", note=f"{len(created)} clips")
     job.data["clips_created"] = created
     job.save()
     run_job(job, cfg)  # source job → done
-    print(f"✓ {job.id}: created {len(created)} clip render job(s): {', '.join(created)}")
-    print("  Note: clip render (cut + reframe + captions) is the next build step.")
+    print(f"✓ {job.id}: created {len(created)} clip render job(s).")
+    print("  Render them:  python cli.py run --all   then  python cli.py publish-queue")
     return 0
 
 

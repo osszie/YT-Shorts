@@ -77,8 +77,12 @@ def _check_render_engine() -> list[tuple[str, str, str]]:
 
 def _check_clip() -> list[tuple[str, str, str]]:
     yt = shutil.which("yt-dlp")
-    return [("yt-dlp (URL / Twitch ingest)", OK if yt else WARN,
-             "present" if yt else "pip install yt-dlp — needed only to clip URLs (Twitch/YouTube)")]
+    return [
+        ("yt-dlp (URL / Twitch ingest)", OK if yt else WARN,
+         "present" if yt else "pip install yt-dlp — needed only to clip URLs (Twitch/YouTube)"),
+        ("opencv (face-aware reframing)", OK if _have("cv2") else WARN,
+         "present" if _have("cv2") else "pip install opencv-python-headless — without it clips center-crop"),
+    ]
 
 
 def _check_backgrounds() -> list[tuple[str, str, str]]:
