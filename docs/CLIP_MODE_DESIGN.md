@@ -155,7 +155,10 @@ cli.py publish-queue / approve-publish                  # identical to today
 - **Model provider:** **build the provider abstraction now** (Gemini + local Ollama)
   so "any model" is real from the start — benefits original mode too.
 
-Open later: launcher "Write or Clip" home screen + a clip-flow mockup.
+Launcher: the clip-selection gate is mocked in
+[`docs/clip-gate-mockup.html`](clip-gate-mockup.html) (paste a Twitch/YouTube
+source → review AI-picked moments → approve which to render). Open later: the
+"Write or Clip" home screen.
 
 ---
 
