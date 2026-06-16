@@ -191,6 +191,14 @@ def write_ass(track: list[dict], out_ass: str, style: dict) -> str:
     return out_ass
 
 
+def build_track_from_words(words: list[dict], total: float) -> list[dict]:
+    """Build a caption track from existing word timings (e.g. a transcript slice
+    for a clip) — same chunk shape as build_track, but no transcription."""
+    timings = [(w["word"], float(w["start"]), float(w["end"])) for w in words]
+    timings = _sanitize(timings, total)
+    return _chunk(timings)
+
+
 def generate(script_text: str, voice_mp3: str, out_ass: str, style: dict) -> str:
     """Convenience: build the timing track and write the ASS file in one call
     (for standalone use). The pipeline stage builds the track once itself and

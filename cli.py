@@ -194,14 +194,25 @@ def cmd_show(args) -> int:
 
 
 def cmd_clip(args) -> int:
+    from pipeline.clip import download as dl
+
     cfg = load_config(args.niche)
-    video = pathlib.Path(args.video).expanduser()
-    if not video.exists():
-        print(f"❌ video not found: {video}")
-        return 1
-    job = Job.create(cfg.niche_id, mode="clip_source",
-                     data={"source_path": str(video.resolve()), "want_clips": args.count})
-    print(f"Analysing {video.name} for up to {args.count} clip(s)…  job {job.id}\n")
+    data: dict = {"want_clips": args.count}
+    if dl.is_url(args.video):                       # Twitch / YouTube / etc.
+        data["source_url"] = args.video
+        label = args.video
+    else:
+        video = pathlib.Path(args.video).expanduser()
+        if not video.exists():
+            print(f"❌ video not found: {video}")
+            return 1
+        data["source_path"] = str(video.resolve())
+        label = video.name
+    if args.section:
+        data["source_section"] = args.section
+    job = Job.create(cfg.niche_id, mode="clip_source", data=data)
+    win = f" [{args.section}]" if args.section else ""
+    print(f"Analysing {label}{win} for up to {args.count} clip(s)…  job {job.id}\n")
     status = run_job(job, cfg)
     if status == STATUS_AWAITING_CLIP:
         n = len(job.data.get("clips_proposed", []))
@@ -222,7 +233,7 @@ def cmd_clips(args) -> int:
         name = pathlib.Path(src.get("path", "?")).name
         print(f"● {job.id}  [{name}, {src.get('duration', '?')}s]")
         for i, c in enumerate(job.data.get("clips_proposed", []), 1):
-            print(f"   {i}. [{c['start']:.0f}–{c['end']:.0f}s] score={c['score']:.2f}  {_short(c['hook'], 60)}")
+            print(f"   {i}. [{c['start']:.0f}–{c['end']:.0f}s] score={c['score']:.2f}  {_short(c.get('title', ''), 60)}")
         print()
     print("Approve with:  python cli.py approve-clip <id> [--pick 1,3]")
     return 0
@@ -240,17 +251,31 @@ def cmd_approve_clip(args) -> int:
         print("Nothing to approve.")
         return 1
     cfg = _cfg_for(job)
+    # Slice the source transcript per clip (clip-relative timings) so each render
+    # job can caption itself without re-transcribing.
+    import json
+    words_all = []
+    tpath = job.artifact("transcript.json")
+    if tpath.exists():
+        with open(tpath, "r", encoding="utf-8") as f:
+            words_all = json.load(f).get("words", [])
+
     created = []
     for c in chosen:
+        s, e = c["start"], c["end"]
+        wslice = [{"word": w["word"], "start": round(w["start"] - s, 3), "end": round(w["end"] - s, 3)}
+                  for w in words_all if s <= w["start"] < e]
         child = Job.create(cfg.niche_id, mode="clip", data={
-            "source_path": job.data["source"]["path"], "clip": c, "from_source": job.id})
+            "source_path": job.data["source"]["path"], "clip": c,
+            "words": wslice, "clip_text": " ".join(w["word"] for w in wslice),
+            "from_source": job.id})
         created.append(child.id)
     job.approve_gate("clip", note=f"{len(created)} clips")
     job.data["clips_created"] = created
     job.save()
     run_job(job, cfg)  # source job → done
-    print(f"✓ {job.id}: created {len(created)} clip render job(s): {', '.join(created)}")
-    print("  Note: clip render (cut + reframe + captions) is the next build step.")
+    print(f"✓ {job.id}: created {len(created)} clip render job(s).")
+    print("  Render them:  python cli.py run --all   then  python cli.py publish-queue")
     return 0
 
 
@@ -334,10 +359,11 @@ def build_parser() -> argparse.ArgumentParser:
     s.add_argument("job_id")
     s.set_defaults(func=cmd_show)
 
-    s = sub.add_parser("clip", help="analyse a long video and propose Shorts clips")
-    s.add_argument("video", help="path to a local source video")
+    s = sub.add_parser("clip", help="analyse a local video OR a URL (Twitch/YouTube) and propose Shorts clips")
+    s.add_argument("video", help="local video path OR a URL (Twitch VOD/clip, YouTube, …)")
     s.add_argument("--niche", default=DEFAULT_NICHE)
     s.add_argument("--count", type=int, default=3, help="how many clips to propose")
+    s.add_argument("--section", help="only this window of a long source, e.g. 600-1200 or 00:10:00-00:20:00")
     s.set_defaults(func=cmd_clip)
 
     sub.add_parser("clips", help="list source videos awaiting the clip gate").set_defaults(func=cmd_clips)

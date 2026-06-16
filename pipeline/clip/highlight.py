@@ -47,7 +47,7 @@ def _sanitize(raw: list[dict], duration: float, min_len: float, max_len: float) 
         out.append({
             "start": round(start, 2),
             "end": round(end, 2),
-            "hook": (c.get("hook") or "").strip() or "Highlight",
+            "title": (c.get("title") or c.get("hook") or "").strip() or "Highlight",
             "reason": (c.get("reason") or "").strip(),
             "score": float(c.get("score", 0.5)) if str(c.get("score", "")).strip() else 0.5,
         })
@@ -66,13 +66,18 @@ def _evenly_spaced(duration: float, count: int, target: float = TARGET_LEN) -> l
         end = min(duration, start + min(target, step))
         if end - start >= 5:
             clips.append({"start": round(start, 2), "end": round(end, 2),
-                          "hook": f"Clip {i + 1}", "reason": "evenly-spaced (offline)", "score": 0.5})
+                          "title": f"Clip {i + 1}", "reason": "evenly-spaced (offline)", "score": 0.5})
     return clips
 
 
 def select_highlights(transcript: dict, count: int = 3,
                       min_len: float = 18.0, max_len: float = 60.0) -> list[dict]:
-    """Return up to `count` clip segments [{start,end,hook,reason,score}]."""
+    """Return up to `count` clip segments [{start,end,title,reason,score}].
+
+    Clips are existing moments, not generated content — so this picks segments
+    and gives them a plain descriptive title (NOT a hook; hooks/angles belong to
+    original from-scratch videos only, STRATEGY §2 vs §8).
+    """
     duration = transcript["duration"]
     words = transcript.get("words", [])
 
@@ -82,9 +87,11 @@ def select_highlights(transcript: dict, count: int = 3,
             f"The video is {duration:.0f}s long. Timestamps are in seconds:\n\n"
             f"{_timestamped_lines(words)}\n\n"
             f"Pick the {count} BEST self-contained moments to cut into vertical Shorts. "
-            f"Each must stand alone, open with a hook, and be {int(min_len)}-{int(max_len)}s long. "
+            f"Each must stand alone and be {int(min_len)}-{int(max_len)}s long. "
             "Prefer surprising, funny, insightful, or emotionally strong moments.\n"
-            'Return JSON: {"clips": [{"start": <sec>, "end": <sec>, "hook": "punchy title", '
+            "Give each a short, plain, descriptive title of what the moment is about "
+            "(for the upload) — not clickbait.\n"
+            'Return JSON: {"clips": [{"start": <sec>, "end": <sec>, "title": "what it\'s about", '
             '"reason": "why it works", "score": 0..1}]}'
         )
         out = llm.generate_json(prompt)  # rate-limit errors propagate to the stage

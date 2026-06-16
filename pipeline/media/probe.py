@@ -18,3 +18,14 @@ def duration_seconds(media_path: str) -> float:
         capture_output=True, text=True, check=True,
     )
     return float(out.stdout.strip())
+
+
+def dimensions(media_path: str) -> tuple[int, int]:
+    """Return (width, height) of the first video stream."""
+    out = subprocess.run(
+        ["ffprobe", "-v", "error", "-select_streams", "v:0",
+         "-show_entries", "stream=width,height", "-of", "csv=p=0:s=x", str(media_path)],
+        capture_output=True, text=True, check=True,
+    )
+    w, h = out.stdout.strip().split("\n")[0].split("x")[:2]
+    return int(w), int(h)

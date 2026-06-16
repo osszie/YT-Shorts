@@ -18,6 +18,8 @@ from .job import (Job, STATUS_ACTIVE, STATUS_AWAITING_ANGLE, STATUS_AWAITING_CLI
                   STATUS_AWAITING_PUBLISH, STATUS_DONE, STATUS_FAILED)
 from .stages.base import SimilarityTooHigh
 from .stages.clip import IngestStage, TranscribeStage, HighlightStage
+from .stages.clip_render import (CutReframeStage, ClipCaptionsStage,
+                                 ClipAssembleStage, ClipMetadataStage, ClipThumbnailStage)
 from .stages.idea import IdeaStage
 from .stages.angle import AngleStage
 from .stages.script import ScriptStage
@@ -62,7 +64,19 @@ _GATE_STATUS = {
     "clip": STATUS_AWAITING_CLIP,
 }
 
-_PLANS = {"clip_source": CLIP_SOURCE_PLAN}
+# Clip mode — RENDER plan: one approved segment → a vertical Short. Reuses
+# AssetsStage (caption style), ThumbnailStage, UploadStage from the original flow.
+CLIP_RENDER_PLAN = [
+    (None, AssetsStage()),
+    (None, CutReframeStage()),
+    (None, ClipCaptionsStage()),
+    (None, ClipAssembleStage()),
+    (None, ClipMetadataStage()),
+    (None, ClipThumbnailStage()),
+    ("publish", UploadStage()),
+]
+
+_PLANS = {"clip_source": CLIP_SOURCE_PLAN, "clip": CLIP_RENDER_PLAN}
 
 
 def _plan_for(job: Job):

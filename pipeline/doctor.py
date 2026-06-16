@@ -75,6 +75,16 @@ def _check_render_engine() -> list[tuple[str, str, str]]:
              "Node/deps missing — will fall back to ffmpeg. Run: (cd remotion && npm install)")]
 
 
+def _check_clip() -> list[tuple[str, str, str]]:
+    yt = shutil.which("yt-dlp")
+    return [
+        ("yt-dlp (URL / Twitch ingest)", OK if yt else WARN,
+         "present" if yt else "pip install yt-dlp — needed only to clip URLs (Twitch/YouTube)"),
+        ("opencv (face-aware reframing)", OK if _have("cv2") else WARN,
+         "present" if _have("cv2") else "pip install opencv-python-headless — without it clips center-crop"),
+    ]
+
+
 def _check_backgrounds() -> list[tuple[str, str, str]]:
     d = ROOT / "assets" / "backgrounds"
     n = len(list(d.glob("*.mp4"))) if d.exists() else 0
@@ -134,6 +144,7 @@ def run_checks(probe: bool = False) -> dict[str, list[tuple[str, str, str]]]:
         "Binaries": _check_binaries(),
         "Render engine": _check_render_engine(),
         "Backgrounds": _check_backgrounds(),
+        "Clip mode": _check_clip(),
         "LLM": _check_llm(),
         "Upload": _check_upload(),
     }

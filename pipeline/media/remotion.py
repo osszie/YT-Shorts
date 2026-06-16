@@ -103,6 +103,51 @@ def render(*, job_dir, voice_mp3: str, background_path: str, caption_track: list
     return out_mp4
 
 
+def _browser_flags(cmd: list) -> None:
+    browser = _browser_executable()
+    if browser:
+        cmd.append(f"--browser-executable={browser}")
+    chrome_mode = os.getenv("REMOTION_CHROME_MODE") or ("chrome-for-testing" if browser else None)
+    if chrome_mode:
+        cmd.append(f"--chrome-mode={chrome_mode}")
+
+
+def render_clip(*, job_dir, video_src: str, caption_track: list[dict], duration: float,
+                style: dict, out_mp4: str) -> str:
+    """Render a repurposed clip via the Remotion `Clip` composition: the reframed
+    source video full-frame (with its own audio) + karaoke captions. No hook."""
+    _check()
+    job_dir = str(job_dir)
+    staged = os.path.join(job_dir, "clip.mp4")
+    if os.path.abspath(video_src) != os.path.abspath(staged):
+        shutil.copyfile(video_src, staged)
+    duration_in_frames = max(1, math.ceil(duration * FPS))
+    props = {
+        "videoSrc": "clip.mp4",
+        "captions": caption_track,
+        "fps": FPS,
+        "durationInFrames": duration_in_frames,
+        "style": {
+            "primary": style.get("web_primary", "#FFFF00"),
+            "highlight": style.get("web_highlight", "#FFA500"),
+            "fontFamily": style.get("fontname", "Arial"),
+            "fontSize": int(style.get("fontsize", 72)),
+        },
+    }
+    props_path = os.path.join(job_dir, "remotion.clip.props.json")
+    with open(props_path, "w", encoding="utf-8") as f:
+        json.dump(props, f)
+    cmd = ["npx", "remotion", "render", "src/index.ts", "Clip", os.path.abspath(out_mp4),
+           f"--props={os.path.abspath(props_path)}", f"--public-dir={os.path.abspath(job_dir)}",
+           f"--frames=0-{duration_in_frames - 1}", "--log=error"]
+    _browser_flags(cmd)
+    print(f"  🎬 Remotion clip render {os.path.basename(out_mp4)} ({duration:.1f}s @ {FPS}fps)...")
+    result = subprocess.run(cmd, cwd=str(REMOTION_DIR), capture_output=True, text=True)
+    if result.returncode != 0:
+        raise RemotionUnavailable(f"Remotion clip render failed:\n{result.stderr[-1500:]}")
+    return out_mp4
+
+
 def _browser_executable() -> str | None:
     """Path to a Chromium/Chrome to render with, or None to let Remotion manage
     its own headless shell (the default on a normal network).

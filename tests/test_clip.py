@@ -27,7 +27,7 @@ def test_evenly_spaced_offline():
 
 
 def test_sanitize_caps_length():
-    out = hl._sanitize([{"start": 10, "end": 1000, "score": 0.9, "hook": "x"}],
+    out = hl._sanitize([{"start": 10, "end": 1000, "score": 0.9, "title": "x"}],
                        duration=300, min_len=18, max_len=60)
     assert out and (out[0]["end"] - out[0]["start"]) <= 60
 
@@ -36,11 +36,11 @@ def test_select_highlights_uses_llm(monkeypatch):
     import pipeline.clip.highlight as H
     monkeypatch.setattr(H.llm, "available", lambda: True)
     monkeypatch.setattr(H.llm, "generate_json", lambda *a, **k: {"clips": [
-        {"start": 5, "end": 35, "hook": "Great bit", "reason": "funny", "score": 0.9}]})
+        {"start": 5, "end": 35, "title": "Great bit", "reason": "funny", "score": 0.9}]})
     transcript = {"duration": 120.0, "text": "hi",
                   "words": [{"word": "hi", "start": 0, "end": 1}]}
     clips = H.select_highlights(transcript, count=3)
-    assert clips and clips[0]["hook"] == "Great bit"
+    assert clips and clips[0]["title"] == "Great bit"
 
 
 def test_select_highlights_offline_fallback(monkeypatch):
@@ -71,9 +71,49 @@ def test_clip_gate_then_done(cfg, monkeypatch):
     assert orchestrator.run_job(job, cfg) == STATUS_DONE
 
 
+# --- URL / Twitch ingest -------------------------------------------------
+
+def test_is_url():
+    from pipeline.clip import download as dl
+    assert dl.is_url("https://www.twitch.tv/videos/123456")
+    assert dl.is_url("https://youtu.be/abc")
+    assert not dl.is_url("/home/me/stream.mp4")
+
+
+def test_ingest_downloads_url(cfg, monkeypatch, tmp_path):
+    import pipeline.stages.clip as clipstage
+    import pipeline.clip.download as dlmod
+    fake = tmp_path / "source.mp4"
+    fake.write_bytes(b"x")
+    monkeypatch.setattr(dlmod, "download", lambda url, out, section=None: str(fake))
+    monkeypatch.setattr(clipstage.probe, "require", lambda _t: None)
+    monkeypatch.setattr(clipstage.probe, "duration_seconds", lambda _p: 3600.0)
+    job = Job.create("hidden_things", mode="clip_source",
+                     data={"source_url": "https://twitch.tv/videos/1", "source_section": "600-1200"})
+    clipstage.IngestStage().run(job, cfg)
+    assert job.data["source_path"] == str(fake)
+    assert job.data["source"]["duration"] == 3600.0
+    assert job.data["source"]["origin"].startswith("https://twitch.tv")
+
+
+def test_ingest_local_section_trims(cfg, monkeypatch, tmp_path):
+    import pipeline.stages.clip as clipstage
+    src = tmp_path / "long.mp4"; src.write_bytes(b"x")
+    trimmed = tmp_path / "cut.mp4"; trimmed.write_bytes(b"y")
+    monkeypatch.setattr(clipstage.IngestStage, "_trim_local",
+                        staticmethod(lambda path, section, out: str(trimmed)))
+    monkeypatch.setattr(clipstage.probe, "require", lambda _t: None)
+    monkeypatch.setattr(clipstage.probe, "duration_seconds", lambda _p: 600.0)
+    job = Job.create("hidden_things", mode="clip_source",
+                     data={"source_path": str(src), "source_section": "0-600"})
+    clipstage.IngestStage().run(job, cfg)
+    assert job.data["source_path"] == str(trimmed)
+    assert job.data["_trimmed"] is True
+
+
 def test_cli_approve_clip_fans_out(cfg, monkeypatch):
     _stub_source(monkeypatch)
-    cli.cmd_clip(argparse.Namespace(video=__file__, niche="hidden_things", count=2))
+    cli.cmd_clip(argparse.Namespace(video=__file__, niche="hidden_things", count=2, section=None))
     src = [j for j in all_jobs() if j.mode == "clip_source"][0]
     cli.cmd_approve_clip(argparse.Namespace(job_id=src.id, pick=None))
     clip_jobs = [j for j in all_jobs() if j.mode == "clip"]
