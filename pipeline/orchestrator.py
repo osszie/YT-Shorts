@@ -14,9 +14,10 @@ MAX_REGEN attempts) with a "make it different" nudge.
 from __future__ import annotations
 
 from .config import Config
-from .job import (Job, STATUS_ACTIVE, STATUS_AWAITING_ANGLE,
+from .job import (Job, STATUS_ACTIVE, STATUS_AWAITING_ANGLE, STATUS_AWAITING_CLIP,
                   STATUS_AWAITING_PUBLISH, STATUS_DONE, STATUS_FAILED)
 from .stages.base import SimilarityTooHigh
+from .stages.clip import IngestStage, TranscribeStage, HighlightStage
 from .stages.idea import IdeaStage
 from .stages.angle import AngleStage
 from .stages.script import ScriptStage
@@ -46,16 +47,38 @@ PLAN = [
     ("publish", UploadStage()),
 ]
 
-_GATE_STATUS = {"angle": STATUS_AWAITING_ANGLE, "publish": STATUS_AWAITING_PUBLISH}
+# Clip mode (STRATEGY §8) — SOURCE analysis plan: find + propose clips, park at
+# the clip-selection gate. (The per-clip render plan is built on top separately.)
+CLIP_SOURCE_PLAN = [
+    (None, IngestStage()),
+    (None, TranscribeStage()),
+    (None, HighlightStage()),
+    ("clip", None),   # terminal gate: human approves which clips to render
+]
+
+_GATE_STATUS = {
+    "angle": STATUS_AWAITING_ANGLE,
+    "publish": STATUS_AWAITING_PUBLISH,
+    "clip": STATUS_AWAITING_CLIP,
+}
+
+_PLANS = {"clip_source": CLIP_SOURCE_PLAN}
+
+
+def _plan_for(job: Job):
+    return _PLANS.get(getattr(job, "mode", "original"), PLAN)
 
 
 def run_job(job: Job, cfg: Config, *, force: bool = False, stop_before_upload: bool = False) -> str:
     """Advance `job` as far as it can go. Returns the resulting job.status."""
-    for gate, stage in PLAN:
+    for gate, stage in _plan_for(job):
         if gate and not job.gate_approved(gate):
             job.status = _GATE_STATUS[gate]
             job.save()
             return job.status
+
+        if stage is None:   # gate-only (terminal) entry
+            continue
 
         if stop_before_upload and stage.name == "upload":
             job.status = STATUS_AWAITING_PUBLISH if not job.gate_approved("publish") else STATUS_ACTIVE

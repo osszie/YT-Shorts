@@ -29,6 +29,7 @@ JOBS_DIR = ROOT / "jobs"
 # last completed stage so the orchestrator knows where to resume.
 STATUS_ACTIVE = "active"            # mid-pipeline, no gate blocking
 STATUS_AWAITING_ANGLE = "awaiting_angle"   # parked at the angle gate
+STATUS_AWAITING_CLIP = "awaiting_clip"     # parked at the clip-selection gate
 STATUS_AWAITING_PUBLISH = "awaiting_publish"  # parked at the publish gate
 STATUS_DONE = "done"
 STATUS_FAILED = "failed"
@@ -43,6 +44,9 @@ def _now() -> float:
 class Job:
     id: str
     niche: str
+    # Source mode (STRATEGY §8): "original" (generate a Short), "clip_source"
+    # (analyse a long video → propose clips), or "clip" (render one clip).
+    mode: str = "original"
     status: str = STATUS_ACTIVE
     stage: str = "created"          # last completed stage
     created_at: float = field(default_factory=_now)
@@ -99,9 +103,9 @@ class Job:
         return cls(**raw)
 
     @classmethod
-    def create(cls, niche: str) -> "Job":
+    def create(cls, niche: str, mode: str = "original", data: dict[str, Any] | None = None) -> "Job":
         job_id = time.strftime("%Y%m%d-%H%M%S") + "-" + uuid.uuid4().hex[:6]
-        job = cls(id=job_id, niche=niche)
+        job = cls(id=job_id, niche=niche, mode=mode, data=dict(data or {}))
         job.mark_stage("created")
         job.save()
         return job
