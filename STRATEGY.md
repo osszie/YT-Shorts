@@ -129,3 +129,25 @@ app's two main review screens.
 Full design + technical plan: [`docs/LAUNCHER_DESIGN.md`](docs/LAUNCHER_DESIGN.md).
 Status: **design only — no app code yet.**
 
+## 8. Two source modes — generate *and* repurpose (planned)
+
+The pipeline gains a second *source mode* so it's a Shorts factory two ways:
+
+- **Original** (today) — write an original Short: idea → angle → script → TTS →
+  captions → render.
+- **Clip** (new) — cut a Short out of existing long-form video (your podcast,
+  stream, talk): ingest → transcribe (Whisper) → LLM picks the best moments →
+  cut → reframe to 9:16 → caption → render. An open-source, model-agnostic
+  "OpusClip".
+
+Clip mode is mostly **reuse**: same job state machine, same two gates (the angle
+gate becomes a *clip-selection gate*; publish gate unchanged), same Whisper
+captions / assemble / metadata / upload. The new pieces are ingest, transcribe,
+highlight-selection, and cut+reframe. **Policy caveat:** clip mode is for content
+you own or are licensed to use — clipping others' content is exactly the
+"reused content" risk in §1. This also motivates a model-provider abstraction
+(Gemini / local Ollama / OpenAI-compatible) so "any model" is real.
+
+Full design + technical plan: [`docs/CLIP_MODE_DESIGN.md`](docs/CLIP_MODE_DESIGN.md).
+Status: **design only — no code yet.**
+
