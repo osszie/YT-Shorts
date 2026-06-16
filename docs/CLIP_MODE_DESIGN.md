@@ -149,7 +149,9 @@ cli.py publish-queue / approve-publish                  # identical to today
 
 - **Reframing:** **face / active-speaker tracking from day one** (OpenCV/MediaPipe)
   so the talking head stays in frame — not just a center crop.
-- **Ingest:** **local files only** for the MVP (`yt-dlp` URL support is a later phase).
+- **Ingest:** local files **and** URLs — Twitch VODs/clips, YouTube, etc. via
+  `yt-dlp`, with an optional `--section start-end` to fetch only a window of a
+  long VOD (so multi-hour Twitch streams don't download in full).
 - **Model provider:** **build the provider abstraction now** (Gemini + local Ollama)
   so "any model" is real from the start — benefits original mode too.
 
