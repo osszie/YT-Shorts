@@ -27,7 +27,7 @@ def test_evenly_spaced_offline():
 
 
 def test_sanitize_caps_length():
-    out = hl._sanitize([{"start": 10, "end": 1000, "score": 0.9, "hook": "x"}],
+    out = hl._sanitize([{"start": 10, "end": 1000, "score": 0.9, "title": "x"}],
                        duration=300, min_len=18, max_len=60)
     assert out and (out[0]["end"] - out[0]["start"]) <= 60
 
@@ -36,11 +36,11 @@ def test_select_highlights_uses_llm(monkeypatch):
     import pipeline.clip.highlight as H
     monkeypatch.setattr(H.llm, "available", lambda: True)
     monkeypatch.setattr(H.llm, "generate_json", lambda *a, **k: {"clips": [
-        {"start": 5, "end": 35, "hook": "Great bit", "reason": "funny", "score": 0.9}]})
+        {"start": 5, "end": 35, "title": "Great bit", "reason": "funny", "score": 0.9}]})
     transcript = {"duration": 120.0, "text": "hi",
                   "words": [{"word": "hi", "start": 0, "end": 1}]}
     clips = H.select_highlights(transcript, count=3)
-    assert clips and clips[0]["hook"] == "Great bit"
+    assert clips and clips[0]["title"] == "Great bit"
 
 
 def test_select_highlights_offline_fallback(monkeypatch):

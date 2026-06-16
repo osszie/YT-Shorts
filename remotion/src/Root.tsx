@@ -1,7 +1,8 @@
 import React from 'react';
 import {Composition} from 'remotion';
 import {Short} from './Short';
-import {shortSchema, ShortProps} from './schema';
+import {Clip} from './Clip';
+import {shortSchema, ShortProps, clipSchema, ClipProps} from './schema';
 
 // Defaults let `remotion studio` open without external props. The Python
 // renderer overrides everything via --props and sizes the timeline from
@@ -43,21 +44,45 @@ const defaultProps: ShortProps = {
   },
 };
 
+const clipDefaultProps: ClipProps = {
+  videoSrc: 'clip.mp4',
+  captions: defaultProps.captions,
+  fps: 30,
+  durationInFrames: 90,
+  style: defaultProps.style,
+};
+
 export const RemotionRoot: React.FC = () => {
   return (
-    <Composition
-      id="Short"
-      component={Short}
-      schema={shortSchema}
-      defaultProps={defaultProps}
-      width={1080}
-      height={1920}
-      fps={defaultProps.fps}
-      durationInFrames={defaultProps.durationInFrames}
-      calculateMetadata={({props}) => ({
-        durationInFrames: props.durationInFrames,
-        fps: props.fps,
-      })}
-    />
+    <>
+      <Composition
+        id="Short"
+        component={Short}
+        schema={shortSchema}
+        defaultProps={defaultProps}
+        width={1080}
+        height={1920}
+        fps={defaultProps.fps}
+        durationInFrames={defaultProps.durationInFrames}
+        calculateMetadata={({props}) => ({
+          durationInFrames: props.durationInFrames,
+          fps: props.fps,
+        })}
+      />
+      <Composition
+        id="Clip"
+        component={Clip}
+        schema={clipSchema}
+        defaultProps={clipDefaultProps}
+        width={1080}
+        height={1920}
+        fps={clipDefaultProps.fps}
+        durationInFrames={clipDefaultProps.durationInFrames}
+        calculateMetadata={({props}) => ({
+          durationInFrames: props.durationInFrames,
+          fps: props.fps,
+        })}
+      />
+    </>
   );
 };

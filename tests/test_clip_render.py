@@ -47,7 +47,7 @@ def test_build_track_from_words():
 def test_clip_metadata_offline(cfg):
     from pipeline.stages.clip_render import ClipMetadataStage
     job = Job.create("hidden_things", mode="clip", data={
-        "clip": {"hook": "The wildest moment", "start": 0, "end": 30},
+        "clip": {"title": "The wildest moment", "start": 0, "end": 30},
         "clip_text": "so then the whole thing fell over and everyone lost it"})
     ClipMetadataStage().run(job, cfg)
     meta = job.data["metadata"]
@@ -58,6 +58,7 @@ def test_clip_metadata_offline(cfg):
 def test_clip_render_flow_with_mocks(cfg, monkeypatch):
     import pipeline.stages.clip_render as cr
     from pipeline.media import thumbnail as tmod
+    monkeypatch.setenv("RENDER_ENGINE", "ffmpeg")  # exercise the FFmpeg-burn path
 
     def fake_reframe(src, s, e, out):
         open(out, "wb").write(b"x")
@@ -77,7 +78,7 @@ def test_clip_render_flow_with_mocks(cfg, monkeypatch):
 
     job = Job.create("hidden_things", mode="clip", data={
         "source_path": "/x.mp4",
-        "clip": {"start": 10, "end": 40, "hook": "Big moment", "score": 0.9},
+        "clip": {"start": 10, "end": 40, "title": "Big moment", "score": 0.9},
         "words": [{"word": "hello", "start": 0, "end": 1}], "clip_text": "hello"})
     status = orchestrator.run_job(job, cfg, stop_before_upload=True)
 

@@ -35,5 +35,16 @@ export const shortSchema = z.object({
   style: styleSchema,
 });
 
+// Clip mode (STRATEGY §8): an existing video segment, full-frame, with karaoke
+// captions — no zoom/drift/header (it's already framed; it's not a hook video).
+export const clipSchema = z.object({
+  videoSrc: z.string(),
+  captions: z.array(captionSchema),
+  fps: z.number(),
+  durationInFrames: z.number(),
+  style: styleSchema,
+});
+
 export type ShortProps = z.infer<typeof shortSchema>;
+export type ClipProps = z.infer<typeof clipSchema>;
 export type Caption = z.infer<typeof captionSchema>;

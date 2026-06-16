@@ -233,7 +233,7 @@ def cmd_clips(args) -> int:
         name = pathlib.Path(src.get("path", "?")).name
         print(f"● {job.id}  [{name}, {src.get('duration', '?')}s]")
         for i, c in enumerate(job.data.get("clips_proposed", []), 1):
-            print(f"   {i}. [{c['start']:.0f}–{c['end']:.0f}s] score={c['score']:.2f}  {_short(c['hook'], 60)}")
+            print(f"   {i}. [{c['start']:.0f}–{c['end']:.0f}s] score={c['score']:.2f}  {_short(c.get('title', ''), 60)}")
         print()
     print("Approve with:  python cli.py approve-clip <id> [--pick 1,3]")
     return 0

@@ -19,7 +19,7 @@ from .job import (Job, STATUS_ACTIVE, STATUS_AWAITING_ANGLE, STATUS_AWAITING_CLI
 from .stages.base import SimilarityTooHigh
 from .stages.clip import IngestStage, TranscribeStage, HighlightStage
 from .stages.clip_render import (CutReframeStage, ClipCaptionsStage,
-                                 ClipAssembleStage, ClipMetadataStage)
+                                 ClipAssembleStage, ClipMetadataStage, ClipThumbnailStage)
 from .stages.idea import IdeaStage
 from .stages.angle import AngleStage
 from .stages.script import ScriptStage
@@ -72,7 +72,7 @@ CLIP_RENDER_PLAN = [
     (None, ClipCaptionsStage()),
     (None, ClipAssembleStage()),
     (None, ClipMetadataStage()),
-    (None, ThumbnailStage()),
+    (None, ClipThumbnailStage()),
     ("publish", UploadStage()),
 ]
 
