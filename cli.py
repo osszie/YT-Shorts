@@ -16,10 +16,11 @@ Everything between the gates runs untouched.
 from __future__ import annotations
 
 import argparse
+import pathlib
 import sys
 
 from pipeline.config import DEFAULT_NICHE, list_niches, load_config
-from pipeline.job import (Job, all_jobs, STATUS_AWAITING_ANGLE,
+from pipeline.job import (Job, all_jobs, STATUS_AWAITING_ANGLE, STATUS_AWAITING_CLIP,
                           STATUS_AWAITING_PUBLISH, STATUS_DONE, STATUS_FAILED,
                           STATUS_REJECTED)
 from pipeline.orchestrator import run_job
@@ -192,6 +193,67 @@ def cmd_show(args) -> int:
     return 0
 
 
+def cmd_clip(args) -> int:
+    cfg = load_config(args.niche)
+    video = pathlib.Path(args.video).expanduser()
+    if not video.exists():
+        print(f"❌ video not found: {video}")
+        return 1
+    job = Job.create(cfg.niche_id, mode="clip_source",
+                     data={"source_path": str(video.resolve()), "want_clips": args.count})
+    print(f"Analysing {video.name} for up to {args.count} clip(s)…  job {job.id}\n")
+    status = run_job(job, cfg)
+    if status == STATUS_AWAITING_CLIP:
+        n = len(job.data.get("clips_proposed", []))
+        print(f"→ proposed {n} clip(s). Review:  python cli.py clips")
+    else:
+        print(f"→ {status}: {job.error or ''}")
+    return 0
+
+
+def cmd_clips(args) -> int:
+    awaiting = [j for j in all_jobs() if j.mode == "clip_source" and j.status == STATUS_AWAITING_CLIP]
+    if not awaiting:
+        print("No source videos awaiting the clip gate.")
+        return 0
+    print(f"{len(awaiting)} source video(s) awaiting the CLIP gate:\n")
+    for job in awaiting:
+        src = job.data.get("source", {})
+        name = pathlib.Path(src.get("path", "?")).name
+        print(f"● {job.id}  [{name}, {src.get('duration', '?')}s]")
+        for i, c in enumerate(job.data.get("clips_proposed", []), 1):
+            print(f"   {i}. [{c['start']:.0f}–{c['end']:.0f}s] score={c['score']:.2f}  {_short(c['hook'], 60)}")
+        print()
+    print("Approve with:  python cli.py approve-clip <id> [--pick 1,3]")
+    return 0
+
+
+def cmd_approve_clip(args) -> int:
+    job = Job.load(args.job_id)
+    proposed = job.data.get("clips_proposed", [])
+    if args.pick:
+        idxs = [int(x) for x in args.pick.replace(" ", "").split(",") if x]
+        chosen = [proposed[i - 1] for i in idxs if 1 <= i <= len(proposed)]
+    else:
+        chosen = proposed
+    if not chosen:
+        print("Nothing to approve.")
+        return 1
+    cfg = _cfg_for(job)
+    created = []
+    for c in chosen:
+        child = Job.create(cfg.niche_id, mode="clip", data={
+            "source_path": job.data["source"]["path"], "clip": c, "from_source": job.id})
+        created.append(child.id)
+    job.approve_gate("clip", note=f"{len(created)} clips")
+    job.data["clips_created"] = created
+    job.save()
+    run_job(job, cfg)  # source job → done
+    print(f"✓ {job.id}: created {len(created)} clip render job(s): {', '.join(created)}")
+    print("  Note: clip render (cut + reframe + captions) is the next build step.")
+    return 0
+
+
 def cmd_doctor(args) -> int:
     from pipeline import doctor
     groups = doctor.run_checks(probe=getattr(args, "probe", False))
@@ -271,6 +333,19 @@ def build_parser() -> argparse.ArgumentParser:
     s = sub.add_parser("show", help="dump a job record as JSON")
     s.add_argument("job_id")
     s.set_defaults(func=cmd_show)
+
+    s = sub.add_parser("clip", help="analyse a long video and propose Shorts clips")
+    s.add_argument("video", help="path to a local source video")
+    s.add_argument("--niche", default=DEFAULT_NICHE)
+    s.add_argument("--count", type=int, default=3, help="how many clips to propose")
+    s.set_defaults(func=cmd_clip)
+
+    sub.add_parser("clips", help="list source videos awaiting the clip gate").set_defaults(func=cmd_clips)
+
+    s = sub.add_parser("approve-clip", help="approve clips → create per-clip render jobs")
+    s.add_argument("job_id")
+    s.add_argument("--pick", help="comma-separated clip numbers, e.g. 1,3 (default: all)")
+    s.set_defaults(func=cmd_approve_clip)
 
     sub.add_parser("status", help="overview of all jobs").set_defaults(func=cmd_status)
     sub.add_parser("niches", help="list available niches").set_defaults(func=cmd_niches)
