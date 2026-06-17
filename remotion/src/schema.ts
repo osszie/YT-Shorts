@@ -35,10 +35,16 @@ export const shortSchema = z.object({
   style: styleSchema,
 });
 
-// Clip mode (STRATEGY §8): an existing video segment, full-frame, with karaoke
-// captions — no zoom/drift/header (it's already framed; it's not a hook video).
+// Clip mode (STRATEGY §8): a landscape source segment dynamically panned to 9:16
+// following the speaker (faceTrack), with karaoke captions. No hook/header.
+export const facePointSchema = z.object({t: z.number(), cx: z.number()});
+
 export const clipSchema = z.object({
   videoSrc: z.string(),
+  sourceW: z.number(),
+  sourceH: z.number(),
+  // [{t, cx}] normalized face-x over time; empty → centered.
+  faceTrack: z.array(facePointSchema).optional().default([]),
   captions: z.array(captionSchema),
   fps: z.number(),
   durationInFrames: z.number(),

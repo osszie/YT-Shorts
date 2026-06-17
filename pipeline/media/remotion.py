@@ -112,10 +112,12 @@ def _browser_flags(cmd: list) -> None:
         cmd.append(f"--chrome-mode={chrome_mode}")
 
 
-def render_clip(*, job_dir, video_src: str, caption_track: list[dict], duration: float,
+def render_clip(*, job_dir, video_src: str, source_w: int, source_h: int,
+                face_track: list[dict], caption_track: list[dict], duration: float,
                 style: dict, out_mp4: str) -> str:
-    """Render a repurposed clip via the Remotion `Clip` composition: the reframed
-    source video full-frame (with its own audio) + karaoke captions. No hook."""
+    """Render a repurposed clip via the Remotion `Clip` composition: the landscape
+    source segment dynamically panned to 9:16 following `face_track` (smooth per-
+    frame), with its own audio + karaoke captions. No hook."""
     _check()
     job_dir = str(job_dir)
     staged = os.path.join(job_dir, "clip.mp4")
@@ -124,6 +126,9 @@ def render_clip(*, job_dir, video_src: str, caption_track: list[dict], duration:
     duration_in_frames = max(1, math.ceil(duration * FPS))
     props = {
         "videoSrc": "clip.mp4",
+        "sourceW": int(source_w),
+        "sourceH": int(source_h),
+        "faceTrack": face_track or [],
         "captions": caption_track,
         "fps": FPS,
         "durationInFrames": duration_in_frames,

@@ -58,17 +58,24 @@ def test_clip_metadata_offline(cfg):
 def test_clip_render_flow_with_mocks(cfg, monkeypatch):
     import pipeline.stages.clip_render as cr
     from pipeline.media import thumbnail as tmod
-    monkeypatch.setenv("RENDER_ENGINE", "ffmpeg")  # exercise the FFmpeg-burn path
+    monkeypatch.setenv("RENDER_ENGINE", "ffmpeg")  # exercise the FFmpeg fallback path
 
-    def fake_reframe(src, s, e, out):
+    def fake_cut(src, s, e, out):
         open(out, "wb").write(b"x")
-        return out, True
-    monkeypatch.setattr(cr.rf, "reframe", fake_reframe)
+        return out
+
+    def fake_crop(seg, out, cx):
+        open(out, "wb").write(b"r")
+        return out
+    monkeypatch.setattr(cr.rf, "cut", fake_cut)
+    monkeypatch.setattr(cr.rf, "face_track", lambda seg: [{"t": 0.0, "cx": 0.5}])
+    monkeypatch.setattr(cr.rf, "static_crop", fake_crop)
     monkeypatch.setattr(cr.probe, "require", lambda _t: None)
+    monkeypatch.setattr(cr.probe, "dimensions", lambda _p: (1280, 720))
     monkeypatch.setattr(cr.probe, "duration_seconds", lambda _p: 30.0)
 
     def fake_run(cmd, **kw):
-        open(cmd[-1], "wb").write(b"y")  # create final.mp4 (last arg)
+        open(cmd[-1], "wb").write(b"y")  # caption burn → create final.mp4
         class R:
             returncode = 0
             stderr = ""

@@ -21,16 +21,20 @@ class CutReframeStage(Stage):
     name = "cut_reframe"
 
     def done(self, job: Job) -> bool:
-        return job.artifact("reframed.mp4").exists()
+        return job.artifact("segment.mp4").exists()
 
     def run(self, job: Job, cfg: Config) -> None:
         clip = job.data["clip"]
-        out = str(job.artifact("reframed.mp4"))
-        _, used_face = rf.reframe(job.data["source_path"], clip["start"], clip["end"], out)
+        seg = str(job.artifact("segment.mp4"))
+        rf.cut(job.data["source_path"], clip["start"], clip["end"], seg)
+        w, h = probe.dimensions(seg)
+        track = rf.face_track(seg)                       # smooth per-frame follow
+        job.data["clip_dims"] = {"w": w, "h": h}
+        job.data["face_track"] = track
         job.data["video_duration"] = round(clip["end"] - clip["start"], 2)
-        job.data["reframe"] = {"face_tracked": used_face}
+        job.data["reframe"] = {"face_tracked": bool(track), "points": len(track)}
         job.mark_stage(self.name,
-                       f"{clip['start']:.0f}-{clip['end']:.0f}s 9:16 (face={'yes' if used_face else 'center'})")
+                       f"cut {clip['start']:.0f}-{clip['end']:.0f}s, {len(track)} face points")
 
 
 class ClipCaptionsStage(Stage):
@@ -58,27 +62,33 @@ class ClipAssembleStage(Stage):
 
     def run(self, job: Job, cfg: Config) -> None:
         probe.require("ffmpeg")
-        reframed = str(job.artifact("reframed.mp4"))
+        seg = str(job.artifact("segment.mp4"))
         out = str(job.artifact("final.mp4"))
-        duration = float(job.data.get("video_duration") or probe.duration_seconds(reframed))
+        duration = float(job.data.get("video_duration") or probe.duration_seconds(seg))
         style = job.data["caption_style"]
+        dims = job.data.get("clip_dims") or {"w": 1920, "h": 1080}
+        face = job.data.get("face_track", [])
         with open(job.artifact("captions.json"), "r", encoding="utf-8") as f:
             track = json.load(f)["chunks"]
 
-        # Default to Remotion so clips get the same karaoke captions as Shorts;
-        # fall back to an FFmpeg ASS burn when Remotion isn't available.
+        # Default to Remotion: dynamic per-frame pan following the speaker +
+        # karaoke captions. Fall back to an FFmpeg static face-centered crop +
+        # ASS caption burn when Remotion isn't available.
         engine = os.getenv("RENDER_ENGINE", "remotion").lower()
         if engine == "remotion" and remotion.available():
             try:
-                remotion.render_clip(job_dir=job.dir, video_src=reframed, caption_track=track,
-                                     duration=duration, style=style, out_mp4=out)
+                remotion.render_clip(job_dir=job.dir, video_src=seg,
+                                     source_w=dims["w"], source_h=dims["h"], face_track=face,
+                                     caption_track=track, duration=duration, style=style, out_mp4=out)
                 job.data["render_engine"] = "remotion"
                 job.data["video_duration"] = round(duration, 2)
-                job.mark_stage(self.name, "final.mp4 (clip, remotion karaoke)")
+                job.mark_stage(self.name, "final.mp4 (clip, remotion dynamic-pan)")
                 return
             except remotion.RemotionUnavailable as e:
-                job.log(self.name, f"remotion unavailable ({e}); falling back to ffmpeg burn")
+                job.log(self.name, f"remotion unavailable ({e}); falling back to ffmpeg")
 
+        reframed = str(job.artifact("reframed.mp4"))
+        rf.static_crop(seg, reframed, rf.median_cx(face))
         ass = os.path.abspath(str(job.artifact("captions.ass")))
         escaped = ass.replace("\\", "\\\\").replace(":", "\\:")
         cmd = ["ffmpeg", "-y", "-i", reframed, "-vf", f"subtitles='{escaped}'",
@@ -88,7 +98,7 @@ class ClipAssembleStage(Stage):
             raise RuntimeError(f"clip assemble (caption burn) failed:\n{r.stderr[-600:]}")
         job.data["render_engine"] = "ffmpeg"
         job.data["video_duration"] = round(probe.duration_seconds(out), 2)
-        job.mark_stage(self.name, "final.mp4 (clip, ffmpeg)")
+        job.mark_stage(self.name, "final.mp4 (clip, ffmpeg static-crop)")
 
 
 class ClipThumbnailStage(Stage):

@@ -46,6 +46,9 @@ const defaultProps: ShortProps = {
 
 const clipDefaultProps: ClipProps = {
   videoSrc: 'clip.mp4',
+  sourceW: 1280,
+  sourceH: 720,
+  faceTrack: [],
   captions: defaultProps.captions,
   fps: 30,
   durationInFrames: 90,
