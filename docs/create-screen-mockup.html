@@ -1,0 +1,341 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Shortcutter — Create screen (stronger mockup)</title>
+<!--
+  NON-FUNCTIONAL VISUAL MOCKUP — a revised "Create" screen for Shortcutter
+  (docs/LAUNCHER_DESIGN.md §4). Iterates on docs/launcher-mockup.html:
+    • settings rows: label + control anchored together (no ransom-note gap)
+    • THE DIAL gets a hero treatment with a live consequence descriptor
+    • caption styles show the real white-text + accent-box look, not colour chips
+    • niche cards carry a per-type accent so the grid stays scannable
+    • Advanced is a real full-width disclosure bar
+    • keyboard focus rings + reduced-motion / reduced-transparency fallbacks
+  No app logic — design only. Self-contained, open in any browser.
+-->
+<style>
+  :root{
+    --accent:#7C8CFF;
+    --accent2:#5BD6C7;
+    --glass: rgba(255,255,255,0.10);
+    --glass-strong: rgba(255,255,255,0.16);
+    --stroke: rgba(255,255,255,0.22);
+    --text:#F4F6FF;
+    --muted: rgba(244,246,255,0.62);
+    --faint: rgba(244,246,255,0.40);
+    --radius:26px;
+    --blur: 26px;
+    --focus: #9fe7ff;
+    font-family:-apple-system,"SF Pro Display","SF Pro Text",Inter,"Segoe UI",system-ui,sans-serif;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html,body{height:100%}
+  body{
+    min-height:100vh; display:grid; place-items:center; color:var(--text);
+    background:#0b0a1f; overflow:hidden;
+  }
+  /* ---- moving gradient-mesh backdrop ---- */
+  .bg{position:fixed; inset:-20%; z-index:0; filter:blur(60px) saturate(1.2); opacity:.95}
+  .blob{position:absolute; border-radius:50%; mix-blend-mode:screen; animation:drift 18s ease-in-out infinite alternate}
+  .b1{width:46vw;height:46vw;left:-6vw;top:-8vw;background:#6a4bff;animation-delay:-2s}
+  .b2{width:42vw;height:42vw;right:-8vw;top:-6vw;background:#1fb6ff;animation-delay:-6s}
+  .b3{width:40vw;height:40vw;left:18vw;bottom:-16vw;background:#ff5ca8;animation-delay:-10s}
+  .b4{width:34vw;height:34vw;right:6vw;bottom:-14vw;background:#34e3c4;animation-delay:-4s}
+  @keyframes drift{from{transform:translate(0,0) scale(1)}to{transform:translate(4vw,3vw) scale(1.12)}}
+
+  /* ---- app window ---- */
+  .app{
+    position:relative; z-index:1; width:min(1180px,94vw); height:min(800px,94vh);
+    display:grid; grid-template-columns:248px 1fr; gap:18px; padding:18px;
+    background:rgba(255,255,255,0.06);
+    border:1px solid var(--stroke); border-radius:34px;
+    box-shadow:0 40px 120px rgba(0,0,0,.55), inset 0 1px 0 rgba(255,255,255,.25);
+    backdrop-filter:blur(40px) saturate(1.3); -webkit-backdrop-filter:blur(40px) saturate(1.3);
+  }
+  /* mac traffic lights / drag region */
+  .tl{position:absolute;top:16px;left:20px;display:flex;gap:8px;z-index:3}
+  .tl i{width:12px;height:12px;border-radius:50%;display:block;box-shadow:inset 0 0 0 .5px rgba(0,0,0,.3)}
+  .tl .r{background:#ff5f57}.tl .y{background:#febc2e}.tl .g{background:#28c840}
+
+  .glass{
+    background:var(--glass); border:1px solid var(--stroke); border-radius:var(--radius);
+    backdrop-filter:blur(var(--blur)) saturate(1.25); -webkit-backdrop-filter:blur(var(--blur)) saturate(1.25);
+    box-shadow:0 18px 50px rgba(0,0,0,.35), inset 0 1px 0 rgba(255,255,255,.30);
+  }
+
+  /* ---- sidebar ---- */
+  .rail{display:flex; flex-direction:column; padding:18px 14px; gap:6px; padding-top:40px}
+  .brand{display:flex; align-items:center; gap:11px; padding:8px 10px 18px}
+  .logo{width:34px;height:34px;border-radius:11px;display:grid;place-items:center;font-size:18px;
+    background:linear-gradient(140deg,var(--accent),var(--accent2));
+    box-shadow:0 6px 18px rgba(124,140,255,.5), inset 0 1px 0 rgba(255,255,255,.6)}
+  .brand b{font-size:18px;letter-spacing:.3px}
+  .brand span{display:block;font-size:11px;color:var(--muted);font-weight:500;margin-top:1px}
+  .nav{display:flex;align-items:center;gap:12px;padding:11px 13px;border-radius:14px;color:var(--muted);
+    font-size:14.5px;font-weight:560;cursor:default;transition:.2s; outline:none}
+  .nav .i{width:20px;text-align:center;font-size:16px}
+  .nav:hover{color:var(--text);background:rgba(255,255,255,.06)}
+  .nav:focus-visible{box-shadow:0 0 0 2px var(--focus)}
+  .nav.active{color:#fff;background:rgba(255,255,255,.14);border:1px solid var(--stroke);
+    box-shadow:inset 0 1px 0 rgba(255,255,255,.35)}
+  .nav .badge{margin-left:auto;font-size:11px;font-weight:700;background:var(--accent);color:#0b0a1f;
+    padding:2px 8px;border-radius:999px}
+  .rail .spacer{flex:1}
+  .health{font-size:12px;color:var(--muted);padding:10px 12px;display:flex;align-items:center;gap:8px}
+  .dot{width:8px;height:8px;border-radius:50%;background:#48e6a0;box-shadow:0 0 10px #48e6a0}
+
+  /* ---- main ---- */
+  .main{padding:26px 30px;overflow:auto}
+  .main::-webkit-scrollbar{width:10px}
+  .main::-webkit-scrollbar-thumb{background:rgba(255,255,255,.16);border-radius:999px;border:3px solid transparent;background-clip:padding-box}
+  .h1{font-size:26px;font-weight:730;letter-spacing:.2px}
+  .sub{color:var(--muted);font-size:13.5px;margin-top:4px;max-width:62ch}
+  .section{font-size:12px;font-weight:700;letter-spacing:1.4px;text-transform:uppercase;color:var(--muted);margin:26px 2px 12px}
+
+  /* niche cards — per-type accent stripe so the grid is scannable */
+  .cards{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+  .card{padding:18px 18px 16px;border-radius:20px;cursor:default;position:relative;overflow:hidden;outline:none;
+    --c:var(--accent)}
+  .card::before{content:"";position:absolute;left:0;top:0;bottom:0;width:4px;background:var(--c);opacity:.9}
+  .card .emoji{width:42px;height:42px;border-radius:13px;display:grid;place-items:center;font-size:22px;
+    background:color-mix(in srgb,var(--c) 26%,transparent);border:1px solid color-mix(in srgb,var(--c) 50%,transparent)}
+  .card h3{font-size:16.5px;font-weight:680;margin-top:13px}
+  .card p{color:var(--muted);font-size:12.5px;margin-top:6px;line-height:1.5}
+  .card .tag{display:inline-block;margin-top:12px;font-size:11px;color:var(--muted);background:rgba(255,255,255,.08);
+    border:1px solid var(--stroke);padding:3px 9px;border-radius:999px}
+  .card:focus-visible{box-shadow:0 0 0 2px var(--focus),0 18px 50px rgba(0,0,0,.35)}
+  .card.sel{outline:2px solid var(--c);box-shadow:0 0 0 4px color-mix(in srgb,var(--c) 20%,transparent),0 18px 50px rgba(0,0,0,.35),inset 0 1px 0 rgba(255,255,255,.3)}
+  .card.sel::after{content:"✓ selected";position:absolute;top:14px;right:14px;font-size:11px;font-weight:700;color:var(--c)}
+
+  /* ---- THE DIAL — hero control ---- */
+  .dial{padding:20px 22px;border-radius:24px;margin-bottom:14px;position:relative;overflow:hidden}
+  .dial::after{content:"";position:absolute;inset:0;background:
+    radial-gradient(120% 140% at 18% -10%,rgba(124,140,255,.22),transparent 55%);pointer-events:none}
+  .dial .top{display:flex;align-items:baseline;gap:10px}
+  .dial .top b{font-size:16px;font-weight:720;letter-spacing:.2px}
+  .dial .top small{color:var(--muted);font-size:12.5px}
+  .dialseg{display:flex;gap:6px;margin-top:14px;background:rgba(0,0,0,.20);border:1px solid var(--stroke);
+    border-radius:15px;padding:5px;position:relative}
+  .dialseg button{flex:1;appearance:none;border:0;background:transparent;color:var(--muted);cursor:default;
+    font:inherit;font-size:13.5px;font-weight:620;padding:11px 8px;border-radius:11px;display:flex;
+    flex-direction:column;align-items:center;gap:3px;transition:.2s;outline:none}
+  .dialseg button .gates{font-size:10.5px;font-weight:700;letter-spacing:.4px;color:var(--faint);text-transform:uppercase}
+  .dialseg button:hover{color:var(--text)}
+  .dialseg button:focus-visible{box-shadow:0 0 0 2px var(--focus)}
+  .dialseg button.on{color:#0b0a1f;background:linear-gradient(140deg,#fff,#dfe4ff);
+    box-shadow:0 6px 16px rgba(0,0,0,.30)}
+  .dialseg button.on .gates{color:rgba(11,10,31,.62)}
+  .dialnote{display:flex;align-items:flex-start;gap:10px;margin-top:14px;font-size:12.5px;color:var(--muted);line-height:1.5}
+  .dialnote .ic{flex:none;margin-top:1px;width:18px;height:18px;border-radius:50%;display:grid;place-items:center;
+    font-size:11px;font-weight:800;background:color-mix(in srgb,var(--accent) 32%,transparent);color:#dfe4ff}
+  .dialnote b{color:var(--text);font-weight:680}
+
+  /* ---- settings: label + control anchored in a 2-col grid ---- */
+  .panel{padding:8px 20px;border-radius:22px}
+  .row{display:grid;grid-template-columns:190px 1fr;align-items:center;gap:18px;
+    padding:15px 2px;border-bottom:1px solid rgba(255,255,255,.08)}
+  .row:last-child{border-bottom:0}
+  .row .lab{font-size:13.5px;font-weight:580}
+  .row .lab small{display:block;color:var(--muted);font-weight:480;font-size:11.5px;margin-top:2px}
+  .row .ctl{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+
+  .seg{display:flex;background:rgba(0,0,0,.18);border:1px solid var(--stroke);border-radius:12px;padding:3px}
+  .seg span{font-size:12.5px;font-weight:600;color:var(--muted);padding:7px 13px;border-radius:9px;cursor:default}
+  .seg span.on{color:#0b0a1f;background:linear-gradient(140deg,#fff,#dfe4ff);box-shadow:0 2px 8px rgba(0,0,0,.25)}
+
+  .slider{flex:1;max-width:260px;height:8px;border-radius:999px;background:rgba(0,0,0,.25);position:relative;border:1px solid var(--stroke)}
+  .slider .fill{position:absolute;inset:0;width:32%;border-radius:999px;background:linear-gradient(90deg,var(--accent2),var(--accent))}
+  .slider .knob{position:absolute;left:32%;top:50%;transform:translate(-50%,-50%);width:20px;height:20px;border-radius:50%;
+    background:#fff;box-shadow:0 4px 12px rgba(0,0,0,.4)}
+  .val{font-variant-numeric:tabular-nums;font-weight:680;font-size:14px;min-width:22px;text-align:right}
+
+  .pill{font-size:12.5px;font-weight:600;color:var(--text);background:rgba(255,255,255,.10);
+    border:1px solid var(--stroke);padding:8px 14px;border-radius:11px;cursor:default;outline:none}
+  .pill:focus-visible{box-shadow:0 0 0 2px var(--focus)}
+  .pill.drop::after{content:"  ⌄";color:var(--muted)}
+
+  /* caption-style previews — the actual white-text + accent-box look */
+  .capset{display:flex;gap:10px;flex-wrap:wrap}
+  .cap{position:relative;width:96px;height:54px;border-radius:11px;overflow:hidden;cursor:default;outline:none;
+    background:linear-gradient(160deg,#2b2740,#171528);border:1px solid var(--stroke);
+    display:grid;place-items:center}
+  .cap span{font-size:12px;font-weight:800;letter-spacing:.3px;color:#fff;padding:2px 6px;border-radius:5px;
+    text-shadow:0 1px 2px rgba(0,0,0,.6)}
+  .cap.sel{outline:2px solid var(--accent);box-shadow:0 0 0 4px rgba(124,140,255,.18)}
+  .cap.sel::after{content:"✓";position:absolute;top:5px;right:6px;font-size:11px;font-weight:800;color:#fff}
+  .cap:focus-visible{box-shadow:0 0 0 2px var(--focus)}
+
+  .toggle{width:46px;height:27px;border-radius:999px;background:linear-gradient(140deg,#48e6a0,#2bbf85);position:relative;border:1px solid var(--stroke);cursor:default;outline:none}
+  .toggle:focus-visible{box-shadow:0 0 0 2px var(--focus)}
+  .toggle .n{position:absolute;top:2px;right:2px;width:21px;height:21px;border-radius:50%;background:#fff;box-shadow:0 2px 6px rgba(0,0,0,.4)}
+  .safe{font-size:11.5px;color:#9affd0;font-weight:600}
+
+  /* Advanced — a real full-width disclosure bar */
+  .disclose{display:flex;align-items:center;gap:12px;margin-top:14px;padding:14px 18px;border-radius:16px;cursor:default;
+    background:rgba(255,255,255,.05);border:1px dashed var(--stroke);outline:none}
+  .disclose:hover{background:rgba(255,255,255,.08)}
+  .disclose:focus-visible{box-shadow:0 0 0 2px var(--focus)}
+  .disclose .chev{font-size:15px;color:var(--muted);transition:.2s}
+  .disclose .dl b{font-size:13.5px;font-weight:600}
+  .disclose .dl small{display:block;color:var(--muted);font-size:11.5px;margin-top:2px}
+  .disclose .more{margin-left:auto;font-size:11.5px;color:var(--muted)}
+
+  /* footer / generate */
+  .foot{display:flex;align-items:center;gap:16px;margin-top:24px;padding-bottom:6px}
+  .gen{margin-left:auto;display:flex;align-items:center;gap:10px;font-size:15px;font-weight:700;color:#0b0a1f;
+    padding:14px 26px;border-radius:16px;cursor:default;outline:none;
+    background:linear-gradient(140deg,#fff,#cfd7ff);
+    box-shadow:0 10px 30px rgba(124,140,255,.55),0 0 0 1px rgba(255,255,255,.4) inset}
+  .gen:focus-visible{box-shadow:0 0 0 2px var(--focus),0 10px 30px rgba(124,140,255,.55)}
+  .foot .note{color:var(--muted);font-size:12.5px}
+
+  .watermark{position:fixed;bottom:14px;z-index:2;color:rgba(255,255,255,.4);font-size:11.5px;letter-spacing:.4px}
+
+  /* ---- accessibility fallbacks (promised in LAUNCHER_DESIGN.md §6) ---- */
+  @media (prefers-reduced-motion: reduce){
+    .blob{animation:none}
+    *{transition:none !important}
+  }
+  @media (prefers-reduced-transparency: reduce){
+    .bg{display:none}
+    body{background:#15132b}
+    .app{background:#1b1936;backdrop-filter:none;-webkit-backdrop-filter:none}
+    .glass,.dial,.panel,.disclose{backdrop-filter:none;-webkit-backdrop-filter:none;background:#211f3d}
+  }
+
+  /* ---- mobile (phone) : sidebar → bottom tab bar, single column ---- */
+  @media (max-width:780px){
+    body{place-items:stretch;overflow:auto}
+    .bg{position:fixed}
+    .tl{display:none}
+    .app{width:100vw;min-height:100dvh;height:auto;display:flex;flex-direction:column;
+      gap:10px;padding:10px 10px 80px;border-radius:0;border:none;box-shadow:none;backdrop-filter:none;-webkit-backdrop-filter:none}
+    .main{order:1;flex:1;padding:18px 15px;border-radius:20px}
+    .rail{order:2;position:fixed;left:8px;right:8px;bottom:8px;z-index:5;flex-direction:row;padding-top:6px;
+      align-items:stretch;justify-content:space-between;gap:2px;padding:6px;border-radius:20px;overflow-x:auto}
+    .rail .brand,.rail .spacer,.rail .health{display:none}
+    .nav{position:relative;flex:1;flex-direction:column;align-items:center;gap:2px;padding:7px 4px;
+      font-size:9.5px;font-weight:600;white-space:nowrap;color:var(--muted)}
+    .nav.active{background:rgba(255,255,255,.16)}
+    .nav .i{font-size:19px;width:auto}
+    .nav .badge{position:absolute;top:1px;right:calc(50% - 22px);margin:0;font-size:9px;padding:1px 5px}
+    .cards{grid-template-columns:1fr}
+    .h1{font-size:21px}
+    .sub{font-size:12.5px}
+    .row{grid-template-columns:1fr;gap:9px}
+    .slider{max-width:none}
+    .dialseg button{padding:10px 4px;font-size:12px}
+    .foot{flex-wrap:wrap}
+    .gen{margin-left:0;width:100%;justify-content:center}
+    .watermark{display:none}
+  }
+</style>
+</head>
+<body>
+  <div class="bg">
+    <div class="blob b1"></div><div class="blob b2"></div>
+    <div class="blob b3"></div><div class="blob b4"></div>
+  </div>
+
+  <div class="app">
+    <div class="tl"><i class="r"></i><i class="y"></i><i class="g"></i></div>
+
+    <!-- sidebar -->
+    <aside class="rail glass">
+      <div class="brand">
+        <div class="logo">✂</div>
+        <div><b>Shortcutter</b><span>Shorts studio</span></div>
+      </div>
+      <div class="nav" tabindex="0"><span class="i">⌂</span> Home</div>
+      <div class="nav active" tabindex="0"><span class="i">＋</span> Create</div>
+      <div class="nav" tabindex="0"><span class="i">◎</span> Angles <span class="badge">18</span></div>
+      <div class="nav" tabindex="0"><span class="i">≋</span> Queue</div>
+      <div class="nav" tabindex="0"><span class="i">▷</span> Publish <span class="badge">5</span></div>
+      <div class="nav" tabindex="0"><span class="i">▤</span> Library</div>
+      <div class="spacer"></div>
+      <div class="nav" tabindex="0"><span class="i">⚙</span> Settings</div>
+      <div class="health glass" style="margin-top:6px;border-radius:14px">
+        <span class="dot"></span> All systems ready · Gemini 2.5 · Remotion
+      </div>
+    </aside>
+
+    <!-- main: Create screen -->
+    <main class="main">
+      <div class="h1">New batch</div>
+      <div class="sub">Pick what to make and how hands-off it should be. Generation runs automatically; you steer at the gates the dial leaves open.</div>
+
+      <div class="section">Video type</div>
+      <div class="cards">
+        <div class="card glass sel" style="--c:#7C8CFF" tabindex="0">
+          <div class="emoji">🔩</div>
+          <h3>The Hidden ___ of Everyday Things</h3>
+          <p>Reveal the hidden engineering, economics or psychology inside ordinary objects. Original by default, high curiosity-gap retention.</p>
+          <span class="tag">recommended</span>
+        </div>
+        <div class="card glass" style="--c:#FF8FB1" tabindex="0">
+          <div class="emoji">🎭</div>
+          <h3>Original first-person stories</h3>
+          <p>AI-written micro-stories with a hook and a twist — the pull of Reddit stories, none of the reused-content risk.</p>
+          <span class="tag">niche: reddit_stories</span>
+        </div>
+      </div>
+
+      <div class="section">The dial — how hands-off</div>
+      <div class="dial glass">
+        <div class="top"><b>Review angles</b><small>generation is automatic; you approve the takes before scripting</small></div>
+        <div class="dialseg" role="tablist">
+          <button role="tab"><span>Fully auto</span><span class="gates">no gates</span></button>
+          <button role="tab" class="on" aria-selected="true"><span>Review angles</span><span class="gates">1 gate</span></button>
+          <button role="tab"><span>Review everything</span><span class="gates">2 gates</span></button>
+        </div>
+        <div class="dialnote">
+          <span class="ic">i</span>
+          <div>You'll approve <b>8 angles</b> at the next gate, then everything renders and publishes on its own — honouring the dry-run, privacy and schedule below. <b>Nothing ever publishes untouched</b> while dry-run is on.</div>
+        </div>
+      </div>
+
+      <div class="section">Settings</div>
+      <div class="panel glass">
+        <div class="row">
+          <div class="lab">How many<small>videos this batch</small></div>
+          <div class="ctl"><div class="slider"><div class="fill"></div><div class="knob"></div></div><div class="val">8</div></div>
+        </div>
+        <div class="row">
+          <div class="lab">Voice</div>
+          <div class="ctl"><div class="pill drop" tabindex="0">Rotate (5 voices)</div></div>
+        </div>
+        <div class="row">
+          <div class="lab">Caption style<small>white text · accent box</small></div>
+          <div class="ctl">
+            <div class="capset">
+              <div class="cap sel" tabindex="0"><span style="background:#FF7A1A">HIDDEN</span></div>
+              <div class="cap" tabindex="0"><span style="background:#FFC400;color:#1a1500">HIDDEN</span></div>
+              <div class="cap" tabindex="0"><span style="background:#22D06B;color:#06210f">HIDDEN</span></div>
+              <div class="cap" tabindex="0"><span style="background:transparent;border:2px solid #fff">HIDDEN</span></div>
+            </div>
+          </div>
+        </div>
+        <div class="row">
+          <div class="lab">Publishing</div>
+          <div class="ctl"><div class="pill drop" tabindex="0">Private</div><span class="safe">Dry-run on · nothing publishes</span><div class="toggle" tabindex="0"><div class="n"></div></div></div>
+        </div>
+      </div>
+
+      <div class="disclose" tabindex="0">
+        <span class="chev">⌄</span>
+        <div class="dl"><b>Advanced</b><small>lenses · format mix · render engine · length &amp; pacing · grounding · model · similarity</small></div>
+        <span class="more">Show</span>
+      </div>
+
+      <div class="foot">
+        <div class="note">Next: review 8 proposed angles →</div>
+        <div class="gen" tabindex="0">✦ Generate batch</div>
+      </div>
+    </main>
+  </div>
+
+  <div class="watermark">Shortcutter — non-functional design mockup · revised Create screen · see docs/LAUNCHER_DESIGN.md</div>
+</body>
+</html>
