@@ -8,6 +8,7 @@ keeping the bounce animation, hook emphasis and keyword highlight.
 from __future__ import annotations
 
 import math
+import os
 import re
 import ssl
 
@@ -25,6 +26,14 @@ except Exception:
 CENTER_Y = 900
 HOOK_WINDOW_SECONDS = 2.0
 MIN_ONSCREEN = 0.12
+
+# Whisper model size for caption timing. "medium"/"large" are accurate but heavy
+# (slow + lots of RAM on CPU-only laptops); "tiny"/"base"/"small" are far lighter
+# and plenty precise for word-level caption timing. Set WHISPER_MODEL=off (or
+# none/estimated) to skip Whisper entirely and use evenly-estimated timings — zero
+# ML cost, for machines that can't run Whisper at all.
+WHISPER_MODEL = os.getenv("WHISPER_MODEL", "base").strip()
+_WHISPER_OFF = WHISPER_MODEL.lower() in {"off", "none", "estimated", "estimate", ""}
 
 
 def _floor_cs(t: float) -> float:
@@ -46,10 +55,10 @@ def _ass_time(seconds: float) -> str:
 
 
 def _whisper_word_timings(audio_path: str):
-    if not WHISPER_AVAILABLE:
+    if _WHISPER_OFF or not WHISPER_AVAILABLE:
         return None
     try:
-        model = whisper.load_model("medium")
+        model = whisper.load_model(WHISPER_MODEL)
         result = model.transcribe(audio_path, word_timestamps=True, language="en",
                                   initial_prompt=None, fp16=False)
         timings = []
