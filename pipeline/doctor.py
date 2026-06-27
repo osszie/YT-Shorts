@@ -45,12 +45,21 @@ def _pkg(label: str, module: str, hint: str, *, required: bool) -> tuple[str, st
     return (label, FAIL if required else WARN, hint)
 
 
+def _whisper_check() -> tuple[str, str, str]:
+    model = os.getenv("WHISPER_MODEL", "base").strip()
+    if model.lower() in {"off", "none", "estimated", "estimate", ""}:
+        return ("whisper (caption timing)", OK, "WHISPER_MODEL=off — using estimated timings")
+    if _have("whisper"):
+        return (f"whisper (caption timing)", OK, f"present — model '{model}'")
+    return ("whisper (caption timing)", WARN,
+            "optional — falls back to estimated timings")
+
+
 def _check_python() -> list[tuple[str, str, str]]:
     return [
         _pkg("PyYAML", "yaml", "pip install -r requirements.txt", required=True),
         _pkg("edge-tts (voice)", "edge_tts", "pip install -r requirements.txt", required=True),
-        _pkg("whisper (caption timing)", "whisper",
-             "optional — falls back to estimated timings", required=False),
+        _whisper_check(),
         _pkg("google-generativeai (LLM)", "google.generativeai",
              "optional — pipeline runs with deterministic fallbacks", required=False),
         _pkg("google-api-python-client (upload)", "googleapiclient",
