@@ -12,8 +12,6 @@ from ..job import Job
 from ..media import probe, render, remotion
 from .base import Stage
 
-DEFAULT_ENGINE = os.getenv("RENDER_ENGINE", "remotion").lower()
-
 
 class AssembleStage(Stage):
     name = "assemble"
@@ -30,7 +28,9 @@ class AssembleStage(Stage):
         background = render.pick_background()
         intro_sfx = bool(job.data.get("intro_style", {}).get("sfx", True))
         out_mp4 = str(job.artifact("final.mp4"))
-        engine = DEFAULT_ENGINE
+        # Read at run time (not import time) so .env load order can't stale it —
+        # matches how the clip render stage selects its engine.
+        engine = os.getenv("RENDER_ENGINE", "remotion").lower()
 
         if engine == "remotion":
             if remotion.available():

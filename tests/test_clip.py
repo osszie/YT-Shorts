@@ -119,3 +119,41 @@ def test_cli_approve_clip_fans_out(cfg, monkeypatch):
     clip_jobs = [j for j in all_jobs() if j.mode == "clip"]
     assert len(clip_jobs) >= 1
     assert clip_jobs[0].data["clip"]["end"] > clip_jobs[0].data["clip"]["start"]
+
+
+# --- chunked highlight selection (whole-VOD coverage) ---------------------
+
+def test_transcript_chunks_cover_everything(monkeypatch):
+    words = [{"word": f"w{i}.", "start": float(i), "end": float(i) + 0.9} for i in range(400)]
+    chunks = hl._transcript_chunks(words, max_chars=500)
+    assert len(chunks) > 1
+    joined = "\n".join(chunks)
+    assert "w0." in joined and "w399." in joined  # nothing silently dropped
+
+
+def test_select_highlights_calls_llm_per_chunk(monkeypatch):
+    import pipeline.clip.highlight as H
+    calls = {"n": 0}
+
+    def fake_json(prompt, **_k):
+        calls["n"] += 1
+        base = calls["n"] * 200.0
+        return {"clips": [{"start": base, "end": base + 30, "title": f"m{calls['n']}", "score": 0.8}]}
+
+    monkeypatch.setattr(H, "CHUNK_CHARS", 400)
+    monkeypatch.setattr(H.llm, "available", lambda: True)
+    monkeypatch.setattr(H.llm, "generate_json", fake_json)
+    words = [{"word": f"word{i}.", "start": float(i), "end": float(i) + 0.9} for i in range(300)]
+    clips = H.select_highlights({"duration": 1200.0, "words": words}, count=5)
+    assert calls["n"] > 1                      # the whole transcript was analysed
+    assert 1 <= len(clips) <= 5
+
+
+def test_dedupe_overlaps_keeps_higher_score():
+    clips = [
+        {"start": 10.0, "end": 40.0, "score": 0.9, "title": "a", "reason": ""},
+        {"start": 15.0, "end": 45.0, "score": 0.7, "title": "dup", "reason": ""},   # ~83% overlap
+        {"start": 100.0, "end": 130.0, "score": 0.6, "title": "b", "reason": ""},
+    ]
+    kept = hl._dedupe_overlaps(clips)
+    assert [c["title"] for c in kept] == ["a", "b"]

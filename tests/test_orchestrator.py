@@ -51,3 +51,31 @@ def test_failure_is_recorded_and_resumable(cfg, monkeypatch):
     status = orchestrator.run_job(job, cfg, stop_before_upload=True)
     assert status == "failed"
     assert "kaboom" in (job.error or "")
+
+
+def test_failure_during_regen_marks_job_failed(cfg, monkeypatch, stub_media):
+    """A rate-limit inside the similarity-regen loop must fail the job cleanly,
+    not escape run_job as an uncaught exception."""
+    from pipeline.stages.script import ScriptStage
+    from pipeline.stages.similarity_guard import SimilarityGuardStage
+    from pipeline.stages.base import SimilarityTooHigh
+
+    calls = {"n": 0}
+
+    def script_run(self, job, _cfg):
+        calls["n"] += 1
+        if calls["n"] == 1:
+            job.data["script"] = "first attempt"
+            job.mark_stage("script")
+        else:
+            raise RuntimeError("429 RESOURCE_EXHAUSTED: quota")
+    monkeypatch.setattr(ScriptStage, "run", script_run)
+    monkeypatch.setattr(SimilarityGuardStage, "run",
+                        lambda self, job, _cfg: (_ for _ in ()).throw(SimilarityTooHigh(0.99, "other")))
+
+    job = Job.create("hidden_things")
+    orchestrator.run_job(job, cfg, stop_before_upload=True)   # park at angle gate
+    job.approve_gate("angle"); job.save()
+    status = orchestrator.run_job(job, cfg, stop_before_upload=True)
+    assert status == "failed"
+    assert "regen" in (job.error or "")

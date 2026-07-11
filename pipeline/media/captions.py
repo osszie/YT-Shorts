@@ -7,20 +7,37 @@ keeping the bounce animation, hook emphasis and keyword highlight.
 """
 from __future__ import annotations
 
+import contextlib
 import math
+import os
 import re
 import ssl
 
 from .probe import duration_seconds
-
-# Whisper downloads its model over HTTPS; some environments have broken certs.
-ssl._create_default_https_context = ssl._create_unverified_context
 
 try:
     import whisper
     WHISPER_AVAILABLE = True
 except Exception:
     WHISPER_AVAILABLE = False
+
+# Whisper model size. "medium" is most accurate but slow + a big download;
+# "small"/"base" are much faster for transcribing long clip-mode sources.
+WHISPER_MODEL = os.getenv("WHISPER_MODEL", "medium")
+
+
+@contextlib.contextmanager
+def _unverified_tls_for_model_download():
+    """Whisper fetches its model over HTTPS and some environments have broken
+    cert chains. Scope the unverified-context workaround to the model load ONLY
+    — never patch the process-wide default (it silently disabled TLS
+    verification for every stdlib HTTPS connection)."""
+    prev = ssl._create_default_https_context
+    ssl._create_default_https_context = ssl._create_unverified_context
+    try:
+        yield
+    finally:
+        ssl._create_default_https_context = prev
 
 CENTER_Y = 900
 HOOK_WINDOW_SECONDS = 2.0
@@ -49,7 +66,8 @@ def _whisper_word_timings(audio_path: str):
     if not WHISPER_AVAILABLE:
         return None
     try:
-        model = whisper.load_model("medium")
+        with _unverified_tls_for_model_download():
+            model = whisper.load_model(WHISPER_MODEL)
         result = model.transcribe(audio_path, word_timestamps=True, language="en",
                                   initial_prompt=None, fp16=False)
         timings = []

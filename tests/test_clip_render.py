@@ -108,3 +108,14 @@ def test_reframe_real_center_crop(tmp_path):
     out = str(tmp_path / "vert.mp4")
     rf.reframe(src, 0.5, 2.5, out)
     assert probe.dimensions(out) == (1080, 1920)
+
+
+def test_clip_captions_done_requires_both_artifacts(cfg):
+    from pipeline.stages.clip_render import ClipCaptionsStage
+    job = Job.create("hidden_things", mode="clip")
+    st = ClipCaptionsStage()
+    assert st.done(job) is False
+    (job.dir / "captions.json").write_text("{}")
+    assert st.done(job) is False                # json alone must not skip the stage
+    (job.dir / "captions.ass").write_text("x")
+    assert st.done(job) is True

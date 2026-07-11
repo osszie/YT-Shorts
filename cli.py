@@ -101,6 +101,9 @@ def cmd_angles(args) -> int:
 
 
 def cmd_approve_angle(args) -> int:
+    if not args.all and not args.job_id:
+        print("Usage: python cli.py approve-angle <job_id> [--pick N | --edit \"...\"]  (or --all)")
+        return 1
     targets = all_jobs() if args.all else [Job.load(args.job_id)]
     targets = [j for j in targets if j.status == STATUS_AWAITING_ANGLE] if args.all else targets
     if not targets:
@@ -130,20 +133,29 @@ def cmd_publish_queue(args) -> int:
     print(f"{len(awaiting)} job(s) awaiting the PUBLISH gate:\n")
     for job in awaiting:
         meta = job.data.get("metadata", {})
-        sim = job.data.get("similarity", {})
-        print(f"● {job.id}  [{job.niche}]")
         thumb = job.data.get("thumbnail", {})
-        print(f"  title:   {meta.get('title')}")
-        print(f"  subject: {job.data.get('subject')}")
-        print(f"  sim:     cos={sim.get('score')} (threshold {sim.get('threshold')})")
+        print(f"● {job.id}  [{job.mode} · {job.niche}]")
+        print(f"  title:   {meta.get('title') or '(blank — fill in before upload)'}")
+        if job.mode == "clip":
+            c = job.data.get("clip", {})
+            print(f"  clip:    [{c.get('start', '?')}–{c.get('end', '?')}s]  face-tracked="
+                  f"{job.data.get('reframe', {}).get('face_tracked', False)}")
+        else:
+            sim = job.data.get("similarity", {})
+            print(f"  subject: {job.data.get('subject')}")
+            print(f"  sim:     cos={sim.get('score')} (threshold {sim.get('threshold')})")
         print(f"  video:   {job.artifact('final.mp4')}")
-        print(f"  thumb:   {job.artifact('thumbnail.jpg')}  headline='{thumb.get('headline','')}'")
+        thumb_note = "clean frame" if thumb.get("clean") else f"headline='{thumb.get('headline', '')}'"
+        print(f"  thumb:   {job.artifact('thumbnail.jpg')}  {thumb_note}")
         print()
     print("Approve with:  python cli.py approve-publish <id>   (uploads; dry-run unless YOUTUBE_DRY_RUN=false)")
     return 0
 
 
 def cmd_approve_publish(args) -> int:
+    if not args.all and not args.job_id:
+        print("Usage: python cli.py approve-publish <job_id>  (or --all)")
+        return 1
     targets = [j for j in all_jobs() if j.status == STATUS_AWAITING_PUBLISH] if args.all else [Job.load(args.job_id)]
     if not targets:
         print("Nothing to approve.")
@@ -173,12 +185,22 @@ def cmd_status(args) -> int:
         print("No jobs yet. Create some:  python cli.py new --count 5")
         return 0
     buckets: dict[str, int] = {}
-    print(f"{'JOB':<24} {'NICHE':<16} {'STATUS':<18} {'STAGE':<16} SUBJECT")
-    print("-" * 100)
+    print(f"{'JOB':<24} {'MODE':<12} {'NICHE':<15} {'STATUS':<17} {'STAGE':<13} ABOUT")
+    print("-" * 108)
     for job in jobs:
         buckets[job.status] = buckets.get(job.status, 0) + 1
-        print(f"{job.id:<24} {job.niche:<16} {job.status:<18} {job.stage:<16} {_short(job.data.get('subject',''), 32)}")
-    print("-" * 100)
+        if job.mode == "clip":
+            c = job.data.get("clip", {})
+            about = f"[{c.get('start', '?')}–{c.get('end', '?')}s] {c.get('title', '')}"
+        elif job.mode == "clip_source":
+            origin = (job.data.get("source", {}).get("origin")
+                      or job.data.get("source_url")
+                      or job.data.get("source_path") or "?")
+            about = origin if origin.startswith("http") else pathlib.Path(origin).name
+        else:
+            about = job.data.get("subject", "")
+        print(f"{job.id:<24} {job.mode:<12} {job.niche:<15} {job.status:<17} {job.stage:<13} {_short(about, 34)}")
+    print("-" * 108)
     print("  ".join(f"{k}={v}" for k, v in sorted(buckets.items())))
     return 0
 

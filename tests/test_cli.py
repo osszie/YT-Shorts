@@ -59,3 +59,8 @@ def test_status_and_niches_run(cfg, capsys):
 def test_doctor_command_returns_int(cfg):
     rc = cli.cmd_doctor(ns())
     assert rc in (0, 1)  # 1 if this env is missing ffmpeg/backgrounds, which is fine
+
+
+def test_approve_commands_without_args_show_usage(cfg):
+    assert cli.cmd_approve_angle(ns(job_id=None, all=False, pick=None, edit=None)) == 1
+    assert cli.cmd_approve_publish(ns(job_id=None, all=False)) == 1

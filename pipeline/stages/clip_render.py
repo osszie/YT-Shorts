@@ -41,12 +41,15 @@ class ClipCaptionsStage(Stage):
     name = "captions"
 
     def done(self, job: Job) -> bool:
-        return job.artifact("captions.json").exists()
+        # Both artifacts are required: JSON feeds the Remotion engine, ASS feeds
+        # the FFmpeg fallback — requiring both keeps interrupted runs resumable
+        # (same fix as the original-mode CaptionsStage).
+        return job.artifact("captions.json").exists() and job.artifact("captions.ass").exists()
 
     def run(self, job: Job, cfg: Config) -> None:
         words = job.data.get("words", [])
         total = float(job.data.get("video_duration")
-                      or probe.duration_seconds(str(job.artifact("reframed.mp4"))))
+                      or probe.duration_seconds(str(job.artifact("segment.mp4"))))
         track = captions.build_track_from_words(words, total) if words else []
         with open(job.artifact("captions.json"), "w", encoding="utf-8") as f:
             json.dump({"duration": total, "chunks": track}, f, ensure_ascii=False)

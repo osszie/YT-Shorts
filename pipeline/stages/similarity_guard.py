@@ -5,6 +5,12 @@ scripts. Above the threshold it raises SimilarityTooHigh, which the orchestrator
 catches to regenerate the script with a "make it different" nudge. This is the
 cheap, high-value mechanism that prevents the 30-near-identical-videos pattern
 that gets channels demonetized at the channel level.
+
+Catalog policy (deliberate): a script is remembered when it PASSES the guard —
+before the publish gate — and stays remembered even if the human later rejects
+the video. Rationale: whether a script shipped or was rejected, we never want to
+generate something nearly identical to it again. If you truly want a rejected
+script's ground re-usable, delete its entry from catalog/embeddings.json.
 """
 from __future__ import annotations
 

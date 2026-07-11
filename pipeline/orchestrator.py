@@ -105,7 +105,18 @@ def run_job(job: Job, cfg: Config, *, force: bool = False, stop_before_upload: b
         try:
             _run_stage(job, cfg, stage)
         except SimilarityTooHigh:
-            if not _regenerate(job, cfg):
+            # Regen itself can fail (e.g. a rate limit inside ScriptStage, which
+            # fails loud by design) — catch it here so the job is marked failed
+            # and resumable instead of the exception escaping run_job entirely.
+            try:
+                regenerated = _regenerate(job, cfg)
+            except Exception as e:  # noqa: BLE001
+                job.status = STATUS_FAILED
+                job.error = f"script (during regen): {e}"
+                job.log("script", f"FAILED during regen: {e}")
+                job.save()
+                return job.status
+            if not regenerated:
                 job.status = STATUS_FAILED
                 job.error = "similarity guard could not produce a distinct script"
                 job.save()
